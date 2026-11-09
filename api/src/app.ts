@@ -4,7 +4,9 @@ import { env } from "./config/env.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 import { authRouter } from "./routes/auth.js";
 import { categoriesRouter } from "./routes/categories.js";
+import { dealsRouter } from "./routes/deals.js";
 import { menuItemsRouter } from "./routes/menu-items.js";
+import { statsRouter } from "./routes/stats.js";
 import { ordersRouter } from "./routes/orders.js";
 import { healthRouter } from "./routes/health.js";
 
@@ -24,6 +26,8 @@ export function createApp() {
   app.use("/api/categories", categoriesRouter);
   app.use("/api/menu-items", menuItemsRouter);
   app.use("/api/orders", ordersRouter);
+  app.use("/api/deals", dealsRouter);
+  app.use("/api/stats", statsRouter);
 
   app.use(notFound);
   app.use(errorHandler); // must be registered last

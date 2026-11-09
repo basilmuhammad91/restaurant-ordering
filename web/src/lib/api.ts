@@ -1,11 +1,14 @@
 import type {
   AuthResponse,
   Category,
+  Deal,
+  DealInput,
   MenuItem,
   MenuItemInput,
   Order,
   OrderStatus,
   Page,
+  Stats,
   User,
 } from "./types";
 
@@ -98,8 +101,22 @@ export const api = {
     update: (id: number, b: Partial<MenuItemInput>) =>
       request<{ data: MenuItem }>("PATCH", `/api/menu-items/${id}`, b),
   },
+  deals: {
+    list: () => request<{ data: Deal[] }>("GET", "/api/deals"), // public: only active deals
+    manage: () => request<{ data: Deal[] }>("GET", "/api/deals/manage"), // admin: all deals
+    create: (b: DealInput) => request<{ data: Deal }>("POST", "/api/deals", b),
+    update: (id: number, b: Partial<DealInput>) => request<{ data: Deal }>("PATCH", `/api/deals/${id}`, b),
+    remove: (id: number) => request<void>("DELETE", `/api/deals/${id}`),
+  },
+  stats: {
+    get: (p: { from?: string; to?: string } = {}) => request<Stats>("GET", `/api/stats${qs(p)}`),
+  },
   orders: {
-    create: (b: { items: { menuItemId: number; quantity: number }[]; notes?: string }) =>
+    create: (b: {
+      items: { menuItemId: number; quantity: number }[];
+      deals: { dealId: number; quantity: number }[];
+      notes?: string;
+    }) =>
       request<{ data: Order }>("POST", "/api/orders", b),
     list: (p: { status?: OrderStatus; page?: number; limit?: number } = {}) =>
       request<Page<Order>>("GET", `/api/orders${qs(p)}`),

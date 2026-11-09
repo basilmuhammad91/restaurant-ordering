@@ -1,20 +1,29 @@
 @import "tailwindcss";
 
-/* Design tokens: Tailwind v4 turns these into utilities (bg-cream, text-ember, font-display, ...) */
+/* Design tokens: Tailwind v4 turns these into utilities (bg-cream, text-ember, bg-night, ...).
+   "ember" is the brand's deep red. Rename the colours here and every page follows. */
 @theme {
-  --color-cream: #faf6ef;
-  --color-paper: #ffffff;
-  --color-ink: #2b2118;
-  --color-muted: #7a6d5f;
-  --color-line: #e8dfd0;
-  --color-ember: #b8461f;
-  --color-ember-dark: #963717;
-  --color-leaf: #3f6b45;
-  --font-display: "Georgia", "Times New Roman", serif;
+  --color-cream: #f4f4f2; /* page background (light content area) */
+  --color-paper: #ffffff; /* cards */
+  --color-ink: #16191d;
+  --color-muted: #6b7280;
+  --color-line: #e5e7eb;
+  --color-ember: #a3141c; /* deep red accent */
+  --color-ember-dark: #82101a;
+  --color-night: #14191d; /* dark nav / hero surfaces */
+  --color-leaf: #15803d;
+  --font-display: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 body {
   background: var(--color-cream);
   color: var(--color-ink);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Smooth scrolling for the hero's "Order Now" button (respect reduced motion) */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }

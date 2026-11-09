@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 import { useAuth } from "../context/AuthContext";
+import { PasswordInput } from "../components/PasswordInput";
 import { ApiError } from "../lib/api";
 import { btnPrimary, card, ErrorBox, Field, inputClass, PageTitle } from "../components/ui";
 
@@ -14,7 +15,7 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   // Already logged in (or just logged in): go back where they came from.
-  if (user) return <Navigate to={state?.from ?? (user.role === "ADMIN" ? "/admin/orders" : "/")} replace />;
+  if (user) return <Navigate to={state?.from ?? (user.role === "ADMIN" ? "/admin" : "/")} replace />;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -40,7 +41,7 @@ export default function LoginPage() {
           <input className={inputClass} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <Field label="Password">
-          <input className={inputClass} type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
         <button className={`${btnPrimary} w-full`} disabled={busy}>
           {busy ? "Logging in…" : "Log in"}

@@ -25,24 +25,27 @@ export default function CartPage() {
       <PageTitle>Your cart</PageTitle>
       <div className={`${card} divide-y divide-line`}>
         {lines.map((l) => (
-          <div key={l.menuItemId} className="flex flex-wrap items-center gap-x-6 gap-y-3 p-4">
+          <div key={l.key} className="flex flex-wrap items-center gap-x-6 gap-y-3 p-4">
             <div className="min-w-0 flex-1">
-              <p className="font-semibold">{l.name}</p>
+              <p className="font-semibold">
+                {l.name}
+                {l.kind === "deal" && <span className="ml-2 rounded bg-amber-400 px-1.5 py-0.5 align-middle text-[10px] font-extrabold text-black">DEAL</span>}
+              </p>
               <p className="text-sm text-muted">{money(l.priceCents)} each</p>
             </div>
             <div className="flex items-center gap-2">
-              <button className={btnSecondary} aria-label={`Decrease ${l.name}`} onClick={() => setQuantity(l.menuItemId, l.quantity - 1)}>
+              <button className={btnSecondary} aria-label={`Decrease ${l.name}`} onClick={() => setQuantity(l.key, l.quantity - 1)}>
                 −
               </button>
               <span className="w-8 text-center font-semibold" aria-label={`Quantity of ${l.name}`}>
                 {l.quantity}
               </span>
-              <button className={btnSecondary} aria-label={`Increase ${l.name}`} onClick={() => setQuantity(l.menuItemId, l.quantity + 1)}>
+              <button className={btnSecondary} aria-label={`Increase ${l.name}`} onClick={() => setQuantity(l.key, l.quantity + 1)}>
                 +
               </button>
             </div>
             <p className="w-20 text-right font-semibold">{money(l.priceCents * l.quantity)}</p>
-            <button className={btnDanger} onClick={() => remove(l.menuItemId)}>
+            <button className={btnDanger} onClick={() => remove(l.key)}>
               Remove
             </button>
           </div>

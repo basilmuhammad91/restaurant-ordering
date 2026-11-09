@@ -3,6 +3,7 @@ import { useFetch } from "../hooks/useFetch";
 import { api, ApiError, errorMessage } from "../lib/api";
 import { money } from "../lib/format";
 import type { Category, MenuItem } from "../lib/types";
+import { FoodImage } from "../components/FoodImage";
 import { btnPrimary, btnSecondary, card, EmptyState, ErrorBox, Field, inputClass, PageTitle, Spinner } from "../components/ui";
 
 export default function AdminMenuPage() {
@@ -77,6 +78,7 @@ export default function AdminMenuPage() {
               </li>
             ) : (
               <li key={item.id} className={`${card} flex flex-wrap items-center gap-x-6 gap-y-3 p-4`}>
+                <FoodImage src={item.imageUrl} name={item.name} className="h-12 w-12 shrink-0 rounded-lg text-2xl" />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">
                     {item.name}{" "}
@@ -121,6 +123,7 @@ function ItemForm({
   const [description, setDescription] = useState(item?.description ?? "");
   const [price, setPrice] = useState(item ? (item.priceCents / 100).toFixed(2) : "");
   const [categoryId, setCategoryId] = useState<number>(item?.categoryId ?? categories[0]?.id ?? 0);
+  const [imageUrl, setImageUrl] = useState(item?.imageUrl ?? "");
   const [available, setAvailable] = useState(item?.available ?? true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -133,12 +136,13 @@ function ItemForm({
 
     // The API stores money as integer cents; the form works in dollars.
     if (!/^\d+(\.\d{1,2})?$/.test(price.trim())) {
-      setErrors({ price: "Enter a price like 12.50" });
+      setErrors({ price: "Enter a price like 1250" });
       return;
     }
     const payload = {
       name: name.trim(),
       description: description.trim() || null,
+      imageUrl: imageUrl.trim() || null,
       priceCents: Math.round(parseFloat(price) * 100),
       available,
       categoryId,
@@ -156,6 +160,7 @@ function ItemForm({
           ...(d.name?.[0] && { name: d.name[0] }),
           ...(d.priceCents?.[0] && { price: d.priceCents[0] }),
           ...(d.description?.[0] && { description: d.description[0] }),
+          ...(d.imageUrl?.[0] && { imageUrl: d.imageUrl[0] }),
         });
       } else setFormError(errorMessage(err));
       setBusy(false);
@@ -170,8 +175,8 @@ function ItemForm({
         <Field label="Name" error={errors.name}>
           <input className={inputClass} required maxLength={150} value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Price (USD)" error={errors.price}>
-          <input className={inputClass} inputMode="decimal" placeholder="12.50" required value={price} onChange={(e) => setPrice(e.target.value)} />
+        <Field label="Price (Rs.)" error={errors.price}>
+          <input className={inputClass} inputMode="decimal" placeholder="1250" required value={price} onChange={(e) => setPrice(e.target.value)} />
         </Field>
         <Field label="Category">
           <select className={inputClass} value={categoryId} onChange={(e) => setCategoryId(Number(e.target.value))}>
@@ -187,6 +192,9 @@ function ItemForm({
           Available to order
         </label>
       </div>
+      <Field label="Image URL (optional)" error={errors.imageUrl}>
+        <input className={inputClass} placeholder="https://…" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+      </Field>
       <Field label="Description" error={errors.description}>
         <textarea className={inputClass} rows={2} maxLength={1000} value={description} onChange={(e) => setDescription(e.target.value)} />
       </Field>

@@ -32,7 +32,8 @@ export default function CheckoutPage() {
     try {
       // Only ids + quantities are sent: the server looks up prices itself.
       const { data: order } = await api.orders.create({
-        items: lines.map((l) => ({ menuItemId: l.menuItemId, quantity: l.quantity })),
+        items: lines.filter((l) => l.kind === "item").map((l) => ({ menuItemId: l.id, quantity: l.quantity })),
+        deals: lines.filter((l) => l.kind === "deal").map((l) => ({ dealId: l.id, quantity: l.quantity })),
         ...(notes.trim() && { notes: notes.trim() }),
       });
       navigate(`/orders/${order.id}`, { replace: true });
@@ -51,7 +52,7 @@ export default function CheckoutPage() {
           <h2 className="mb-3 font-display text-xl font-semibold">Order summary</h2>
           <ul className="divide-y divide-line">
             {lines.map((l) => (
-              <li key={l.menuItemId} className="flex justify-between gap-4 py-2">
+              <li key={l.key} className="flex justify-between gap-4 py-2">
                 <span>
                   {l.quantity} × {l.name}
                 </span>

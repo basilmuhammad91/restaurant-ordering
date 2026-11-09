@@ -10,7 +10,7 @@ export const btnSecondary = `${btn} border border-line bg-paper text-ink hover:b
 export const btnDanger = `${btn} border border-red-200 bg-paper text-red-700 hover:bg-red-50`;
 export const inputClass =
   "w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:border-ember focus:outline-none focus:ring-2 focus:ring-ember/20";
-export const card = "rounded-xl border border-line bg-paper shadow-sm";
+export const card = "rounded-2xl border border-line bg-paper shadow-sm";
 
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
   return (

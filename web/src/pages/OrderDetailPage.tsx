@@ -73,6 +73,16 @@ export default function OrderDetailPage() {
       <div className={`${card} p-5`}>
         <h2 className="mb-3 font-display text-xl font-semibold">Items</h2>
         <ul className="divide-y divide-line">
+          {order.deals.map((d) => (
+            <li key={`deal-${d.id}`} className="flex justify-between gap-4 py-2">
+              <span>
+                {d.quantity} × {d.dealName}
+                <span className="ml-2 rounded bg-amber-400 px-1.5 py-0.5 align-middle text-[10px] font-extrabold text-black">DEAL</span>
+                <span className="ml-2 text-sm text-muted">@ {money(d.unitPriceCents)}</span>
+              </span>
+              <span className="font-medium">{money(d.unitPriceCents * d.quantity)}</span>
+            </li>
+          ))}
           {order.items.map((i) => (
             <li key={i.id} className="flex justify-between gap-4 py-2">
               <span>

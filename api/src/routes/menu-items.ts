@@ -17,7 +17,8 @@ const listQuery = z.object({
 const createBody = z.object({
   name: z.string().trim().min(1).max(150),
   description: z.string().trim().max(1000).nullable().optional(),
-  priceCents: z.number().int().min(0).max(1_000_000),
+  priceCents: z.number().int().min(0).max(100_000_000),
+  imageUrl: z.url({ protocol: /^https?$/ }).max(500).nullable().optional(),
   available: z.boolean().optional(),
   categoryId: z.number().int().positive(),
 });

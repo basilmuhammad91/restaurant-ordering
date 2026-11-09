@@ -35,7 +35,7 @@ export default function OrdersPage() {
                     <p className="font-semibold">Order #{o.id}</p>
                     <p className="text-sm text-muted">{dateTime(o.createdAt)}</p>
                     <p className="mt-1 text-sm text-muted">
-                      {o.items.map((i) => `${i.quantity}× ${i.menuItem.name}`).join(", ")}
+                      {[...o.deals.map((d) => `${d.quantity}× ${d.dealName}`), ...o.items.map((i) => `${i.quantity}× ${i.menuItem.name}`)].join(", ")}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">

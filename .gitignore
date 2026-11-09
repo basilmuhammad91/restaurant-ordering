@@ -10,3 +10,6 @@ dist/
 
 # generated Prisma client
 api/src/generated/
+
+api/.env
+web/.env

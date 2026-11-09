@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation } from "react-router";
 import { useAuth } from "../context/AuthContext";
+import { PasswordInput } from "../components/PasswordInput";
 import { ApiError } from "../lib/api";
 import { btnPrimary, card, ErrorBox, Field, inputClass, PageTitle } from "../components/ui";
 
@@ -43,7 +44,7 @@ export default function RegisterPage() {
           <input className={inputClass} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <Field label="Password (min. 8 characters)" error={fieldErrors.password?.[0]}>
-          <input className={inputClass} type="password" autoComplete="new-password" minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput autoComplete="new-password" minLength={8} required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
         <button className={`${btnPrimary} w-full`} disabled={busy}>
           {busy ? "Creating account…" : "Create account"}
