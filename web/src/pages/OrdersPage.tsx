@@ -19,7 +19,7 @@ export default function OrdersPage() {
 
       {data && data.data.length === 0 && (
         <EmptyState title="No orders yet">
-          <Link to="/" className="text-ember underline">
+          <Link to="/" className="text-brand underline">
             Place your first order
           </Link>
         </EmptyState>
@@ -30,7 +30,7 @@ export default function OrdersPage() {
           <ul className="space-y-3">
             {data.data.map((o) => (
               <li key={o.id}>
-                <Link to={`/orders/${o.id}`} className={`${card} flex flex-wrap items-center justify-between gap-3 p-4 transition hover:border-ember/50`}>
+                <Link to={`/orders/${o.id}`} className={`${card} flex flex-wrap items-center justify-between gap-3 p-4 transition hover:border-brand/50`}>
                   <div>
                     <p className="font-semibold">Order #{o.id}</p>
                     <p className="text-sm text-muted">{dateTime(o.createdAt)}</p>

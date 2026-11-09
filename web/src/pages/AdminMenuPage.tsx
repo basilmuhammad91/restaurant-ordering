@@ -86,7 +86,7 @@ export default function AdminMenuPage() {
                   </p>
                   {item.description && <p className="truncate text-sm text-muted">{item.description}</p>}
                 </div>
-                <p className="font-display text-lg font-bold text-ember">{money(item.priceCents)}</p>
+                <p className="font-display text-lg font-bold text-brand">{money(item.priceCents)}</p>
                 <button
                   className={`${btnSecondary} w-36`}
                   disabled={busyId === item.id}
@@ -168,7 +168,7 @@ function ItemForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className={`${card} mb-4 space-y-4 border-ember/40 p-5`} noValidate>
+    <form onSubmit={onSubmit} className={`${card} mb-4 space-y-4 border-brand/40 p-5`} noValidate>
       <h2 className="font-display text-xl font-semibold">{item ? `Edit "${item.name}"` : "New menu item"}</h2>
       {formError && <ErrorBox message={formError} />}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -188,7 +188,7 @@ function ItemForm({
           </select>
         </Field>
         <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium">
-          <input type="checkbox" className="h-4 w-4 accent-[var(--color-ember)]" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
+          <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={available} onChange={(e) => setAvailable(e.target.checked)} />
           Available to order
         </label>
       </div>

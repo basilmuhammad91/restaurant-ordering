@@ -23,7 +23,7 @@ interface CartState {
   clear: () => void;
 }
 
-const STORAGE_KEY = "ember_cart_v2"; // v2: lines can be deals
+const STORAGE_KEY = "restoflux_cart_v2"; // v2: lines can be deals
 const MAX_QTY = { item: 50, deal: 20 } as const; // same limits the API enforces
 
 function load(): CartLine[] {

@@ -51,7 +51,7 @@ export default function HomePage() {
 
         {data && (
           <section id="menu" className="scroll-mt-20" aria-labelledby="menu-title">
-            <SectionTitle id="menu-title" title="Our menu" sub="Made to order, cooked over fire." />
+            <SectionTitle id="menu-title" title="Our menu" sub="Made to order, always fresh." />
             {data.items.length === 0 ? (
               <EmptyState title="The menu is empty">Check back soon: the kitchen is still preparing it.</EmptyState>
             ) : (
@@ -91,11 +91,11 @@ function Hero({ hasDeals }: { hasDeals: boolean }) {
   return (
     <section className="relative overflow-hidden bg-night text-white">
       <div className="absolute inset-0 opacity-[0.08] [background-image:radial-gradient(#fff_1px,transparent_1px)] [background-size:22px_22px]" aria-hidden />
-      <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-ember/30 blur-3xl" aria-hidden />
+      <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand/30 blur-3xl" aria-hidden />
       <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
         <div>
           <p className="mb-4 inline-block rounded-full border border-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-white/70">
-            {BRAND.name} Kitchen
+            Welcome to {BRAND.name}
           </p>
           <h1 className="text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
             Hungry? Get hot, fresh food <span className="text-red-400">in minutes.</span>
@@ -147,7 +147,7 @@ function Pill({ active, onClick, children }: { active: boolean; onClick: () => v
       aria-selected={active}
       onClick={onClick}
       className={`shrink-0 rounded-full border px-5 py-2 text-sm font-semibold transition ${
-        active ? "border-ember bg-ember text-white" : "border-line bg-paper hover:border-ember/50"
+        active ? "border-brand bg-brand text-white" : "border-line bg-paper hover:border-brand/50"
       }`}
     >
       {children}
@@ -176,7 +176,7 @@ function DealCard({ deal }: { deal: Deal }) {
           <p className="mt-2 text-xs text-muted">{deal.items.map((i) => `${i.quantity}× ${i.menuItem.name}`).join(" · ")}</p>
         </div>
         <div className="mt-auto flex items-baseline gap-2">
-          <span className="text-xl font-extrabold text-ember">{money(deal.dealPriceCents)}</span>
+          <span className="text-xl font-extrabold text-brand">{money(deal.dealPriceCents)}</span>
           <span className="text-sm text-muted line-through">{money(deal.originalPriceCents)}</span>
         </div>
         {deal.available ? (
@@ -206,7 +206,7 @@ function MenuCard({ item }: { item: MenuItem }) {
         <div>
           <div className="flex items-baseline justify-between gap-3">
             <h4 className="text-lg font-bold">{item.name}</h4>
-            <span className="shrink-0 text-lg font-extrabold text-ember">{money(item.priceCents)}</span>
+            <span className="shrink-0 text-lg font-extrabold text-brand">{money(item.priceCents)}</span>
           </div>
           {item.description && <p className="mt-1 text-sm text-muted">{item.description}</p>}
         </div>

@@ -13,7 +13,7 @@ import type {
 } from "./types";
 
 const BASE = String(import.meta.env.VITE_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
-const TOKEN_KEY = "ember_token";
+const TOKEN_KEY = "restoflux_token";
 
 // ---- token storage (localStorage can throw in private mode, so guard it) ----
 export function getToken(): string | null {

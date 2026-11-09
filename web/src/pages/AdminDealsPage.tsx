@@ -85,7 +85,7 @@ export default function AdminDealsPage() {
                   <p className="truncate text-sm text-muted">{d.items.map((i) => `${i.quantity}× ${i.menuItem.name}`).join(" · ")}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-extrabold text-ember">{money(d.dealPriceCents)}</p>
+                  <p className="font-extrabold text-brand">{money(d.dealPriceCents)}</p>
                   <p className="text-xs text-muted">
                     <span className="line-through">{money(d.originalPriceCents)}</span> · {percentOff(d)}% off
                   </p>
@@ -199,7 +199,7 @@ function DealForm({
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className={`${card} mb-4 space-y-5 border-ember/40 p-5`}>
+    <form onSubmit={onSubmit} noValidate className={`${card} mb-4 space-y-5 border-brand/40 p-5`}>
       <h2 className="text-xl font-bold">{deal ? `Edit "${deal.name}"` : "New deal"}</h2>
       {formError && <ErrorBox message={formError} />}
 
@@ -272,7 +272,7 @@ function DealForm({
           <input type="datetime-local" className={inputClass} value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
         </Field>
         <label className="flex items-center gap-2 self-end pb-2 text-sm font-medium">
-          <input type="checkbox" className="h-4 w-4 accent-[var(--color-ember)]" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+          <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
           Active
         </label>
       </div>

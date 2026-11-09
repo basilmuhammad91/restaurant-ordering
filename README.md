@@ -1,10 +1,14 @@
-# Ember & Oak: Restaurant Ordering
+<p align="center">
+  <img src="web/public/logo-lockup.svg" alt="Restoflux" width="320">
+</p>
+
+<p align="center"><strong>Restoflux</strong>: online ordering and restaurant operations in one app.</p>
 
 A full-stack restaurant ordering platform: customers browse the menu and deals and place orders online, and staff run the restaurant from an admin panel with a live order board and a sales dashboard.
 
 Built as a portfolio project to learn the Node.js ecosystem (coming from Laravel), so the code is commented with the "why" behind the choices.
 
-> The product name is a placeholder. Change it in one place: [`web/src/brand.ts`](web/src/brand.ts). The header, footer, page title and favicon all follow it.
+> **Branding lives in one file:** [`web/src/brand.ts`](web/src/brand.ts) holds the name, tagline, brand colour and the logo mark (a serving cloche over a plate with a flowing wave). The header, footer, admin bar, page title and favicon all read from it. The static copies in [`web/public/`](web/public) (`logo.svg`, `logo-lockup.svg`) are generated from the same source.
 
 ## Features
 

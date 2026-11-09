@@ -1,6 +1,6 @@
 import { Link, NavLink, Outlet } from "react-router";
 import { useAuth } from "../context/AuthContext";
-import { LogoMark } from "./Layout";
+import { Logo } from "./Logo";
 
 const tabs = [
   { to: "/admin", label: "Dashboard", end: true },
@@ -19,7 +19,7 @@ export function AdminLayout() {
       <header className="sticky top-0 z-20 bg-night text-white shadow-md">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4">
           <Link to="/admin" className="shrink-0 py-3 text-white">
-            <LogoMark />
+            <Logo onDark />
           </Link>
           <nav className="-mb-px flex flex-1 items-stretch gap-1 overflow-x-auto" aria-label="Admin">
             {tabs.map((t) => (
@@ -29,7 +29,7 @@ export function AdminLayout() {
                 end={t.end ?? false}
                 className={({ isActive }) =>
                   `flex shrink-0 items-center border-b-4 px-3 py-4 text-sm font-semibold transition ${
-                    isActive ? "border-ember text-white" : "border-transparent text-white/65 hover:text-white"
+                    isActive ? "border-brand text-white" : "border-transparent text-white/65 hover:text-white"
                   }`
                 }
               >

@@ -46,7 +46,7 @@ export default function OrderDetailPage() {
 
   return (
     <>
-      <Link to="/orders" className="mb-4 inline-block text-sm text-ember underline">
+      <Link to="/orders" className="mb-4 inline-block text-sm text-brand underline">
         ← All orders
       </Link>
       <PageTitle sub={`Placed ${dateTime(order.createdAt)}`}>Order #{order.id}</PageTitle>
@@ -62,8 +62,8 @@ export default function OrderDetailPage() {
           <ol className="grid grid-cols-5 gap-1 text-center text-xs" aria-label="Order progress">
             {steps.map((s, i) => (
               <li key={s}>
-                <div className={`mb-1 h-1.5 rounded-full ${i <= stepIndex ? "bg-ember" : "bg-line"}`} />
-                <span className={i === stepIndex ? "font-semibold text-ember" : "text-muted"}>{statusLabel[s]}</span>
+                <div className={`mb-1 h-1.5 rounded-full ${i <= stepIndex ? "bg-brand" : "bg-line"}`} />
+                <span className={i === stepIndex ? "font-semibold text-brand" : "text-muted"}>{statusLabel[s]}</span>
               </li>
             ))}
           </ol>
@@ -95,7 +95,7 @@ export default function OrderDetailPage() {
         </ul>
         <div className="mt-3 flex justify-between border-t border-line pt-3 text-lg">
           <span className="font-display font-semibold">Total</span>
-          <span className="font-display text-xl font-bold text-ember">{money(order.totalCents)}</span>
+          <span className="font-display text-xl font-bold text-brand">{money(order.totalCents)}</span>
         </div>
         {order.notes && (
           <p className="mt-4 rounded-lg bg-cream p-3 text-sm">

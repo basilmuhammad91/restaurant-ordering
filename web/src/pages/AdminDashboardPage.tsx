@@ -59,7 +59,7 @@ export default function AdminDashboardPage() {
       {data && (
         <div className="space-y-6">
           {/* Order pipeline: count and amount per status */}
-          <section aria-label="Order pipeline" className="rounded-2xl bg-gradient-to-r from-ember-dark to-ember p-4 text-white shadow-lg">
+          <section aria-label="Order pipeline" className="rounded-2xl bg-gradient-to-r from-brand-dark to-brand p-4 text-white shadow-lg">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               {PIPELINE.map((s) => (
                 <div key={s} className="rounded-xl bg-white/10 p-3 text-center ring-1 ring-white/15" data-testid={`pipeline-${s}`}>
@@ -151,7 +151,7 @@ export default function AdminDashboardPage() {
                       <span className="text-muted">{t.quantity} sold</span>
                     </div>
                     <div className="h-2 rounded-full bg-cream">
-                      <div className="h-2 rounded-full bg-ember" style={{ width: `${(t.quantity / data.topItems[0]!.quantity) * 100}%` }} />
+                      <div className="h-2 rounded-full bg-brand" style={{ width: `${(t.quantity / data.topItems[0]!.quantity) * 100}%` }} />
                     </div>
                   </li>
                 ))}

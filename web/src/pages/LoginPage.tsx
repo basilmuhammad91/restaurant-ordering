@@ -49,7 +49,7 @@ export default function LoginPage() {
       </form>
       <p className="mt-4 text-center text-sm text-muted">
         New here?{" "}
-        <Link to="/register" state={state} className="text-ember underline">
+        <Link to="/register" state={state} className="text-brand underline">
           Create an account
         </Link>
       </p>

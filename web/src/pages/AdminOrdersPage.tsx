@@ -119,7 +119,7 @@ function OrderCard({ order: o, busy, onAct }: { order: Order; busy: boolean; onA
         ))}
       </ul>
       {o.notes && <p className="mt-2 rounded bg-amber-50 p-2 text-xs">📝 {o.notes}</p>}
-      <p className="mt-2 font-extrabold text-ember">{money(o.totalCents)}</p>
+      <p className="mt-2 font-extrabold text-brand">{money(o.totalCents)}</p>
 
       {(next || canCancel(o.status)) && (
         <div className="mt-3 flex flex-wrap gap-2">

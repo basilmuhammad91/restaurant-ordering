@@ -52,7 +52,7 @@ export default function RegisterPage() {
       </form>
       <p className="mt-4 text-center text-sm text-muted">
         Already registered?{" "}
-        <Link to="/login" state={state} className="text-ember underline">
+        <Link to="/login" state={state} className="text-brand underline">
           Log in
         </Link>
       </p>

@@ -38,7 +38,7 @@ export default function App() {
             path="*"
             element={
               <EmptyState title="Page not found">
-                <Link to="/" className="text-ember underline">
+                <Link to="/" className="text-brand underline">
                   Back to the menu
                 </Link>
               </EmptyState>

@@ -4,12 +4,12 @@ import type { OrderStatus } from "../lib/types";
 
 // Shared class strings: a tiny "design system" without a component library.
 export const btn =
-  "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ember/50 disabled:cursor-not-allowed disabled:opacity-50";
-export const btnPrimary = `${btn} bg-ember text-white hover:bg-ember-dark`;
+  "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 disabled:cursor-not-allowed disabled:opacity-50";
+export const btnPrimary = `${btn} bg-brand text-white hover:bg-brand-dark`;
 export const btnSecondary = `${btn} border border-line bg-paper text-ink hover:bg-cream`;
 export const btnDanger = `${btn} border border-red-200 bg-paper text-red-700 hover:bg-red-50`;
 export const inputClass =
-  "w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:border-ember focus:outline-none focus:ring-2 focus:ring-ember/20";
+  "w-full rounded-lg border border-line bg-paper px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 export const card = "rounded-2xl border border-line bg-paper shadow-sm";
 
 export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactNode }) {
@@ -24,7 +24,7 @@ export function PageTitle({ children, sub }: { children: ReactNode; sub?: ReactN
 export function Spinner({ label = "Loading…" }: { label?: string }) {
   return (
     <div role="status" className="flex items-center justify-center gap-3 py-16 text-muted">
-      <span className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-ember" />
+      <span className="h-5 w-5 animate-spin rounded-full border-2 border-line border-t-brand" />
       <span>{label}</span>
     </div>
   );

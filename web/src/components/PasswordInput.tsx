@@ -15,7 +15,7 @@ export function PasswordInput(props: Omit<InputHTMLAttributes<HTMLInputElement>,
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}
         title={visible ? "Hide password" : "Show password"}
-        className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-lg text-muted transition hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ember/40"
+        className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-lg text-muted transition hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
       >
         {visible ? (
           // eye with a slash: password is visible, click to hide

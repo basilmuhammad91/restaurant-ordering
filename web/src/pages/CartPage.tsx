@@ -11,7 +11,7 @@ export default function CartPage() {
       <>
         <PageTitle>Your cart</PageTitle>
         <EmptyState title="Your cart is empty">
-          <Link to="/" className="text-ember underline">
+          <Link to="/" className="text-brand underline">
             Browse the menu
           </Link>{" "}
           to add something tasty.
@@ -52,7 +52,7 @@ export default function CartPage() {
         ))}
         <div className="flex items-center justify-between p-4 text-lg">
           <span className="font-display font-semibold">Total</span>
-          <span className="font-display text-2xl font-bold text-ember">{money(totalCents)}</span>
+          <span className="font-display text-2xl font-bold text-brand">{money(totalCents)}</span>
         </div>
       </div>
 

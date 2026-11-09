@@ -17,7 +17,7 @@ export default function CheckoutPage() {
       <>
         <PageTitle>Checkout</PageTitle>
         <EmptyState title="Nothing to check out">
-          <Link to="/" className="text-ember underline">
+          <Link to="/" className="text-brand underline">
             Add something from the menu
           </Link>
         </EmptyState>
@@ -62,7 +62,7 @@ export default function CheckoutPage() {
           </ul>
           <div className="mt-3 flex justify-between border-t border-line pt-3 text-lg">
             <span className="font-display font-semibold">Total</span>
-            <span className="font-display text-xl font-bold text-ember">{money(totalCents)}</span>
+            <span className="font-display text-xl font-bold text-brand">{money(totalCents)}</span>
           </div>
         </section>
 
