@@ -13,21 +13,8 @@ export async function purgeTenant(tenantId: string): Promise<void> {
       await tx.notificationPreference.deleteMany({ where });
       await tx.notification.deleteMany({ where });
       await tx.approvalRequest.deleteMany({ where });
-      await tx.locationAvailability.deleteMany({ where });
-      await tx.price.deleteMany({ where });
-      await tx.menuCombo.deleteMany({ where });
-      await tx.menuProduct.deleteMany({ where });
-      await tx.menuSchedule.deleteMany({ where });
-      await tx.menu.deleteMany({ where });
-      await tx.comboSlotOption.deleteMany({ where });
-      await tx.comboSlot.deleteMany({ where });
-      await tx.combo.deleteMany({ where });
-      await tx.productModifierGroup.deleteMany({ where });
-      await tx.modifierOption.deleteMany({ where });
-      await tx.modifierGroup.deleteMany({ where });
-      await tx.productVariant.deleteMany({ where });
-      await tx.product.deleteMany({ where });
-      await tx.category.deleteMany({ where });
+      await deleteSales(tx, tenantId);
+      await deleteCatalog(tx, tenantId);
       await tx.auditLog.deleteMany({ where });
       await tx.platformAuditLog.deleteMany({ where }); // what the Restoflux team did to this tenant
       await tx.loginEvent.deleteMany({ where });
@@ -64,4 +51,45 @@ export async function purgePlatformUser(platformUserId: string): Promise<void> {
     await tx.platformSession.deleteMany({ where: { platformUserId } });
     await tx.platformUser.deleteMany({ where: { id: platformUserId } });
   });
+}
+
+type PurgeTx = Parameters<Parameters<typeof unscopedDb.$transaction>[0]>[0];
+
+/** Delete a tenant's whole catalog (menu, prices, availability), children first. Used by tenant purge and the demo menu reset. */
+export async function deleteCatalog(tx: PurgeTx, tenantId: string): Promise<void> {
+  const where = { tenantId };
+  await tx.locationAvailability.deleteMany({ where });
+  await tx.price.deleteMany({ where });
+  await tx.menuCombo.deleteMany({ where });
+  await tx.menuProduct.deleteMany({ where });
+  await tx.menuSchedule.deleteMany({ where });
+  await tx.menu.deleteMany({ where });
+  await tx.comboSlotOption.deleteMany({ where });
+  await tx.comboSlot.deleteMany({ where });
+  await tx.combo.deleteMany({ where });
+  await tx.productModifierGroup.deleteMany({ where });
+  await tx.modifierOption.deleteMany({ where });
+  await tx.modifierGroup.deleteMany({ where });
+  await tx.productVariant.deleteMany({ where });
+  await tx.product.deleteMany({ where });
+  await tx.category.deleteMany({ where });
+}
+
+/** Delete a tenant's orders, payments, shifts and cash records, children first. */
+export async function deleteSales(tx: PurgeTx, tenantId: string): Promise<void> {
+  const where = { tenantId };
+  await tx.$executeRaw`SELECT set_config('app.allow_purge', 'on', true)`;
+  await tx.zReport.deleteMany({ where });
+  await tx.cashMovement.deleteMany({ where });
+  await tx.cashShift.deleteMany({ where });
+  await tx.cashRegister.deleteMany({ where });
+  await tx.refund.deleteMany({ where });
+  await tx.payment.deleteMany({ where });
+  await tx.orderStatusEvent.deleteMany({ where });
+  await tx.orderDiscount.deleteMany({ where });
+  await tx.orderLineTax.deleteMany({ where });
+  await tx.orderLineModifier.deleteMany({ where });
+  await tx.orderLine.deleteMany({ where });
+  await tx.order.deleteMany({ where });
+  await tx.orderSequence.deleteMany({ where });
 }

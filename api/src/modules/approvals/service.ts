@@ -315,5 +315,11 @@ export async function guardAction(tx: Tx, actor: Principal, input: GuardInput): 
     amountMinor: input.amountMinor ?? null,
     currencyCode: input.currencyCode ?? null,
     options: ["INLINE_PIN", "INBOX"],
+    // everything the client needs to ask for approval of exactly this action and then retry it
+    payloadHash: input.payloadHash,
+    entityType: input.entityType,
+    entityId: input.entityId ?? null,
+    locationId: input.locationId ?? null,
+    percent: input.percent ?? null,
   });
 }

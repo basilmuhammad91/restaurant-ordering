@@ -11,6 +11,7 @@ const groups = (perms: Set<string>) => visibleNav(perms).map((g) => g.label);
 // The routes that exist in App.tsx today. Everything else in the nav must be marked `soon`.
 const BUILT = new Set([
   "/", "/approvals", "/org/brands", "/org/locations", "/org/taxes", "/org/payment-methods", "/org/price-books", "/org/tables",
+  "/menu/products", "/menu/categories", "/menu/modifiers", "/menu/combos", "/menu/menus", "/menu/availability",
   "/settings/organization", "/settings/users", "/settings/roles", "/settings/audit",
 ]);
 

@@ -6,6 +6,9 @@ import { availabilityRouter, catalogRouter } from "./modules/catalog/availabilit
 import { combosRouter, menusRouter } from "./modules/catalog/combos-menus.js";
 import { categories, modifierGroupsRouter, productsRouter } from "./modules/catalog/products.js";
 import { pricesRouter } from "./modules/catalog/prices.js";
+import { kitchenRouter } from "./modules/orders/kitchen.js";
+import { ordersRouter } from "./modules/orders/routes.js";
+import { dashboardRouter, registersRouter, reportsRouter, shiftsRouter, zReportsRouter } from "./modules/orders/shifts.js";
 import { auditRouter } from "./modules/audit/routes.js";
 import { authRouter } from "./modules/auth/routes.js";
 import { notificationsRouter } from "./modules/notifications/routes.js";
@@ -44,6 +47,13 @@ v1Router.use("/menus", menusRouter);
 v1Router.use("/prices", pricesRouter);
 v1Router.use("/availability", availabilityRouter);
 v1Router.use("/catalog", catalogRouter);
+v1Router.use("/orders", ordersRouter);
+v1Router.use("/kds", kitchenRouter);
+v1Router.use("/cash-registers", registersRouter);
+v1Router.use("/shifts", shiftsRouter);
+v1Router.use("/z-reports", zReportsRouter);
+v1Router.use("/reports", reportsRouter);
+v1Router.use("/dashboard", dashboardRouter);
 v1Router.use("/audit-logs", auditRouter);
 v1Router.use("/notifications", notificationsRouter);
 

@@ -332,7 +332,7 @@ describe("catalog", () => {
       const viewer = api(app, (await loginStaff(app, await createStaff(fx, { permissions: ["menu.view"] }))).token);
       const manager = api(app, (await loginStaff(app, await createStaff(fx, { permissions: ["menu.view", "menu.manage"] }))).token);
       const pricer = api(app, (await loginStaff(app, await createStaff(fx, { permissions: ["menu.view", "menu.price.edit"], allLocations: true }))).token);
-      const kitchen = api(app, (await loginStaff(app, await createStaff(fx, { permissions: ["menu.view", "menu.availability.toggle"] }))).token);
+      const kitchen = api(app, (await loginStaff(app, await createStaff(fx, { permissions: ["menu.view", "menu.availability.toggle"], allLocations: true }))).token);
 
       const product = { brandId: base.brandId, categoryId, name: "Forbidden Dish", variants: [{ name: "Regular" }] };
       const price = { prices: [{ target: { variantId: burger.variants[0].id }, scope: { priceBookId: base.priceBookId }, amountMinor: 1 }] };

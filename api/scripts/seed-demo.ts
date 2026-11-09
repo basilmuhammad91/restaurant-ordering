@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { randomBytes } from "node:crypto";
 import { hashPassword } from "../src/core/auth/passwords.js";
+import { seedDemoCatalog } from "./seed-catalog.js";
 import { runAsTenant } from "../src/core/context/context.js";
 import { unscopedDb } from "../src/core/db/client.js";
 import { db } from "../src/core/db/scoped.js";
@@ -97,6 +98,14 @@ await runAsTenant(created.tenantId, async () => {
     await db.locationPaymentMethod.createMany({ data: usable.map((m, i) => ({ tenantId, locationId: loc.id, paymentMethodId: m.id, sortOrder: i })) });
   }
   void byName;
+
+  // ---- the menu: categories, sizes, add-ons, combos, dayparts, prices, 86 ----
+  const menu = await seedDemoCatalog({
+    tenantId, smashId: smash.id, saffronId: saffron.id, taxCategoryId: standard.id,
+    books: { PKR: pkrBook.id, AED: aedBook.id, USD: usdBook.id },
+    locations: { khi: khi.id, lhe: lhe.id, dxb: dxb.id, hou: hou.id },
+  });
+  console.log(`Demo menu: ${menu.products} products, ${menu.combos} combo.`);
 
   // ---- one user per default role ----
   const roles = await db.role.findMany();

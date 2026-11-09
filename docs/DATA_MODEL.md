@@ -309,3 +309,12 @@ Order of generation: currencies/units → tenant, brands, locations, tax profile
 - *Append-only triggers:* `audit_logs` and `login_events` reject UPDATE and DELETE unless the transaction sets `app.allow_purge = 'on'` (only the purge helper does).
 
 **Data migration performed by scripts (not by the SQL migration):** `npm run bootstrap:default-tenant` creates the `default` tenant (brand, "Main Branch", zero-rate tax profile, PKR price book, roles, payment methods) and copies each legacy ADMIN into a staff Owner with the same email and password hash. It is idempotent and changes nothing legacy.
+
+---
+
+## 8. Phase 2a: as built (deltas from section 3.4)
+- `Category.parentId` was not built (categories are flat). `Product` gained `tags[]` (dietary and display indicators) and `allergens[]`; `stationKey` is a free key matched to `KitchenStation.key`.
+- `Menu` has no `isDefault`-with-schedule rule beyond: default menu with no schedule rows is always served. `MenuSchedule.startsAt/endsAt` are "HH:MM" strings (null both = all day), weekdays are `Int[]` (0 = Sunday).
+- `Price`: `validFrom` / `validTo` were NOT built (promotions in Phase 7 handle time-limited prices). `channel` uses a new enum `PriceChannel` (POS, WEB, ANDROID, IOS, PHONE, AGGREGATOR); Phase 3 reuses it for orders. Uniqueness is two partial unique indexes (channel null / not null) over COALESCE of the four targets and two scopes. `currencyCode` is stamped by the API from the price book or branch.
+- `LocationAvailability` is location-scoped (a branch-limited user sees and changes only their branches). `Price` is location-scoped when `locationId` is set (branch overrides) and company-wide otherwise.
+- `ModifierOption.isDefault` marks a preselected option; option and variant removal is a soft delete.

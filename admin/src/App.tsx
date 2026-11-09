@@ -12,6 +12,12 @@ import PaymentMethodsPage from "@/features/org/PaymentMethodsPage";
 import PriceBooksPage from "@/features/org/PriceBooksPage";
 import TablesPage from "@/features/org/TablesPage";
 import TaxesPage from "@/features/org/TaxesPage";
+import AvailabilityPage from "@/features/menu/AvailabilityPage";
+import CategoriesPage from "@/features/menu/CategoriesPage";
+import CombosPage from "@/features/menu/CombosPage";
+import MenusPage from "@/features/menu/MenusPage";
+import ModifierGroupsPage from "@/features/menu/ModifierGroupsPage";
+import ProductsPage from "@/features/menu/ProductsPage";
 import AuditLogPage from "@/features/settings/AuditLogPage";
 import OrganizationSettingsPage from "@/features/settings/OrganizationSettingsPage";
 import RoleMatrixPage from "@/features/settings/RoleMatrixPage";
@@ -50,6 +56,17 @@ export default function App() {
 
           <Route element={<RequirePermission anyOf={["approvals.view"]} />}>
             <Route path="approvals" element={<ApprovalsPage />} />
+          </Route>
+
+          <Route element={<RequirePermission anyOf={["menu.view"]} />}>
+            <Route path="menu/products" element={<ProductsPage />} />
+            <Route path="menu/categories" element={<CategoriesPage />} />
+            <Route path="menu/modifiers" element={<ModifierGroupsPage />} />
+            <Route path="menu/combos" element={<CombosPage />} />
+            <Route path="menu/menus" element={<MenusPage />} />
+          </Route>
+          <Route element={<RequirePermission anyOf={["menu.availability.toggle"]} />}>
+            <Route path="menu/availability" element={<AvailabilityPage />} />
           </Route>
 
           <Route element={<RequirePermission anyOf={["org.view"]} />}>

@@ -16,7 +16,8 @@
 | **0** | Planning docs | **Approved 2026-11-09** (all decisions accepted) |
 | 1 | Tenancy, organization, users, roles and permissions, audit, admin app shell | **Done, awaiting review** (2026-11-09) |
 | **1B** | Platform layer: Restoflux super-admin console, organization management, per-organization theme | **Built, tests running** (2026-11-09) |
-| 2 | Catalog and menu | Not started |
+| **2a** | Catalog core: categories, products and sizes, modifiers, combos, menus and dayparts, prices, branch availability (86), demo menu, admin Menu screens | **Built, final test run in progress** (2026-11-10) |
+| 2b | Move the legacy menu into the new catalog, rebuild a thin storefront on it, remove the old admin pages from `web/` | Not started |
 | 3 | Orders, POS, KDS, payments, shifts and cash drawer | Not started |
 | 4 | Inventory, recipes, automatic deduction | Not started |
 | 5 | Purchasing and suppliers | Not started |
@@ -83,9 +84,31 @@ Open `http://localhost:5174/platform`. The first account is created with the scr
 - No impersonation ("view as organization"): support is limited to resetting an owner's password and changing plan, limits and status.
 - Platform login rate limiting is in memory (same limitation as staff login).
 
+## What Phase 2a produced (catalog core)
+- **Data (migration `20261110090000_phase2a_catalog`):** `Category`, `Product`, `ProductVariant`, `ModifierGroup`, `ModifierOption`, `ProductModifierGroup`, `Menu`, `MenuSchedule`, `MenuProduct`, `MenuCombo`, `Combo`, `ComboSlot`, `ComboSlotOption`, `Price`, `LocationAvailability`. All tenant-scoped, composite tenant-safe foreign keys, soft delete on the master data.
+  - Database-enforced rules: names unique per brand (case-insensitive, live rows only); exactly one default variant per product and one default menu per brand; a price has exactly one target and exactly one scope; one price per target + scope + channel; modifier min <= max; schedule days 0 to 6 and "HH:MM" times; availability has exactly one target.
+- **Price resolution (pure, in `packages/contracts`):** branch + channel, then branch, then price book + channel, then price book. No price found means the item is not sold there. Prices are integer minor units; the API stamps the currency from the book or branch, so they cannot disagree.
+- **Menus and dayparts (pure rules):** evaluated in the branch's timezone, windows can run past midnight (they belong to the day they started), a brand with no menus sells everything priced, a menu with no schedule is served only if it is the default.
+- **86:** per-branch sold-out flag, optional timer, "unlisted at this branch", bulk restock. Takes effect on the next read.
+- **`GET /api/v1/catalog/sellable?locationId&channel&at`:** the one answer to "what can this branch sell right now, in this channel, at what price" (active item, a served menu, a price, not unlisted, not 86'd, modifier options and combos included). The POS (Phase 3) and the storefront will both use it, so they cannot disagree.
+- **API:** categories, products (with sizes and add-on links in one transaction), modifier groups, combos, menus, prices (upsert, list, delete), availability, sellable. Reading needs `menu.view`, writing `menu.manage`, prices `menu.price.edit`, 86 `menu.availability.toggle`. Branch-limited users can price and 86 only their own branch; price-book prices need all-branch access. Everything is audited.
+- **Admin (Menu group):** Products (sizes, add-ons, indicators, allergens, station, tax category, price editor with branch and channel special prices), Categories, Modifier groups (with add-on prices), Combos & deals (choice slots, bundle price with "was" price, up-charges, time window), Menus & dayparts, Branch availability (86 board).
+- **Demo menu:** `npm run seed:demo` includes it; for an existing demo tenant run `npm run seed:demo-menu` (`-- --reset` rebuilds only the menu and keeps all passwords). 23 products, 4 add-on groups, 1 combo, lunch and dinner menus for Saffron Table, PKR / AED / USD prices, a web-channel price, a branch override, two 86 / unlisted examples.
+
+### Deferred to Phase 2b (decided, not forgotten)
+- Copying the legacy menu items and deals into the new catalog, and the compatibility bridge so storefront orders keep working.
+- The thin customer storefront rebuilt on `catalog/sellable`, and removing the old admin menu/deals pages from `web/`.
+- Product images upload (images are URLs for now).
+- Date-limited prices (`validFrom` / `validTo`): promotions in Phase 7 cover time-based pricing.
+
+### Notes for later phases (from the owner's reference screenshots)
+- POS (Phase 3): category list on the left, product grid with photos, order-type tabs (online, dine-in, delivery, takeaway), settle / running orders, cart with subtotal, tax, service charge, discount, delivery charge, hold / sync.
+- Reports (Phase 6): dashboard tiles (net sale, tax, net sale incl. tax, delivery charges, service charges, total collected), sales by order type, by payment method, by channel (including aggregators), day of week, branch comparison, last three months; daily, monthly, work-period, source-wise, cancelled orders and cancelled items, income statement, expense report, supplier ledger, discounts, hourly sales, stock ledger and stock consumption.
+
 ## Next steps
 1. **You:** review Phases 1 and 1B (sign in as the demo Owner, change the theme; sign in to `/platform`, create an organization, suspend it and watch its users get signed out).
-2. **Phase 2 (Catalog and menu), after your go-ahead:** items, variants, modifiers, price books per brand/branch, menu publishing; the customer storefront is rebuilt thin on the new catalog (decided: keep a storefront, remove the old admin pages from `web/`). Then Phases 3 to 8 build every "Soon" module in the sidebar.
+2. **You:** review Phase 2a (Menu screens in the admin app).
+3. **Phase 2b**, then **Phase 3** (orders, POS, kitchen display, shifts and cash), and so on through Phase 8 until no "Soon" item is left in the sidebar.
 
 ## Change log
 | Date | Change |
@@ -93,3 +116,4 @@ Open `http://localhost:5174/platform`. The first account is created with the scr
 | 2026-11-09 | Phase 0 documents written (spec, architecture, data model, decisions, progress). |
 | 2026-11-09 | Phase 1 built: tenancy, org, IAM, approvals, audit, `/api/v1`, admin app shell. 219 API + 19 admin tests green. |
 | 2026-11-09 | Phase 1B built: platform console and API, organization lifecycle and plan limits, per-organization theme. |
+| 2026-11-10 | Phase 2a built: catalog schema, price resolution, menus and dayparts, 86, sellable menu API, admin Menu screens, demo menu. |

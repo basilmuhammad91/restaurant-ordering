@@ -1,4 +1,4 @@
-import { availabilityUpdateSchema, idSchema, isScheduled, isSellableNow, resolvePrice, sellableQuerySchema, type PriceChannel, type ResolvablePrice } from "@restoflux/contracts";
+import { availabilityUpdateSchema, idSchema, isScheduled, isSellableNow, resolvePrice, sellableQuerySchema, toBasisPoints, type PriceChannel, type ResolvablePrice } from "@restoflux/contracts";
 import { z } from "zod";
 import { recordAudit } from "../../core/audit/audit.js";
 import { requireContext } from "../../core/context/context.js";
@@ -100,16 +100,36 @@ const catalog = securedRouter("/api/v1/catalog");
 
 type PriceRow = ResolvablePrice & { targetId: string };
 
-catalog.get("/sellable", "menu.view", async (req, res) => {
-  const q = sellableQuerySchema.parse(req.query);
+// The shapes buildSellableMenu returns (the order engine looks things up in them).
+export interface SellableVariant { id: string; name: string; isDefault: boolean; priceMinor: number; compareAtMinor: number | null }
+export interface SellableOption { id: string; name: string; isDefault: boolean; priceMinor: number }
+export interface SellableGroup { id: string; name: string; minSelect: number; maxSelect: number; options: SellableOption[] }
+export interface SellableProduct {
+  id: string; name: string; description: string | null; imageUrl: string | null; tags: string[]; allergens: string[]; stationKey: string | null; taxCategoryId: string | null;
+  variants: SellableVariant[]; modifierGroups: SellableGroup[];
+}
+export interface SellableCategory { id: string; name: string; imageUrl: string | null; sortOrder: number; products: SellableProduct[] }
+export interface SellableSlotOption { id: string; variantId: string; productName: string; variantName: string; stationKey: string | null; taxCategoryId: string | null; name: string; isDefault: boolean; upchargeMinor: number }
+export interface SellableCombo {
+  id: string; name: string; description: string | null; imageUrl: string | null; taxCategoryId: string | null; priceMinor: number; compareAtMinor: number | null;
+  slots: { id: string; name: string; quantity: number; options: SellableSlotOption[] }[];
+}
+
+/**
+ * What a branch can sell right now. The ONE source for the POS screen, the storefront AND the order engine
+ * (an order is priced from this, never from numbers the client sends), so they can never disagree.
+ */
+export async function buildSellableMenu(q: { locationId: string; channel?: PriceChannel | undefined; at?: string | undefined }) {
   const channel = (q.channel ?? null) as PriceChannel | null;
   const now = q.at ? new Date(q.at) : new Date();
 
-  const location = await db.location.findFirst({ where: { id: q.locationId }, select: { id: true, name: true, brandId: true, currencyCode: true, timezone: true, priceBookId: true, type: true } });
+  const location = await db.location.findFirst({ where: { id: q.locationId }, select: { id: true, name: true, brandId: true, currencyCode: true, timezone: true, priceBookId: true, taxProfileId: true, type: true } });
   if (!location) throw notFound("location");
-  if (!location.brandId || !location.priceBookId) return res.json({ data: { location, currencyCode: location.currencyCode, categories: [], combos: [] } });
+  if (!location.brandId || !location.priceBookId) {
+    return { location: { id: location.id, name: location.name, timezone: location.timezone }, currencyCode: location.currencyCode, channel, at: now.toISOString(), tax: null, categories: [] as SellableCategory[], combos: [] as SellableCombo[] };
+  }
 
-  const [menus, products, combos, availabilityRows] = await Promise.all([
+  const [menus, products, combos, availabilityRows, taxProfile] = await Promise.all([
     db.menu.findMany({ where: { brandId: location.brandId, isActive: true }, select: { id: true, isDefault: true, schedules: true, products: { select: { productId: true } }, combos: { select: { comboId: true } } } }),
     db.product.findMany({
       where: { brandId: location.brandId, isActive: true, category: { isActive: true, deletedAt: null } },
@@ -123,9 +143,10 @@ catalog.get("/sellable", "menu.view", async (req, res) => {
     }),
     db.combo.findMany({
       where: { brandId: location.brandId, isActive: true },
-      select: { id: true, name: true, description: true, imageUrl: true, taxCategoryId: true, startsAt: true, endsAt: true, slots: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, quantity: true, options: { select: { id: true, isDefault: true, variant: { select: { id: true, name: true, product: { select: { name: true } } } } } } } } },
+      select: { id: true, name: true, description: true, imageUrl: true, taxCategoryId: true, startsAt: true, endsAt: true, slots: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, quantity: true, options: { select: { id: true, isDefault: true, variant: { select: { id: true, name: true, product: { select: { name: true, stationKey: true, taxCategoryId: true } } } } } } } } },
     }),
     db.locationAvailability.findMany({ where: { locationId: location.id } }),
+    location.taxProfileId ? db.taxProfile.findFirst({ where: { id: location.taxProfileId }, include: { rules: { orderBy: { sortOrder: "asc" } } } }) : Promise.resolve(null),
   ]);
 
   // which products / combos are on a menu being served right now (a brand with no menus sells everything)
@@ -184,19 +205,28 @@ catalog.get("/sellable", "menu.view", async (req, res) => {
     if (!price) return [];
     return [{
       id: c.id, name: c.name, description: c.description, imageUrl: c.imageUrl, taxCategoryId: c.taxCategoryId, priceMinor: price.amountMinor, compareAtMinor: price.compareAtMinor,
-      slots: c.slots.map((s) => ({ id: s.id, name: s.name, quantity: s.quantity, options: s.options.map((o) => ({ id: o.id, variantId: o.variant.id, name: `${o.variant.product.name} (${o.variant.name})`, isDefault: o.isDefault, upchargeMinor: priceOf(o.id)?.amountMinor ?? 0 })) })),
+      slots: c.slots.map((s) => ({ id: s.id, name: s.name, quantity: s.quantity, options: s.options.map((o) => ({ id: o.id, variantId: o.variant.id, productName: o.variant.product.name, variantName: o.variant.name, stationKey: o.variant.product.stationKey, taxCategoryId: o.variant.product.taxCategoryId, name: `${o.variant.product.name} (${o.variant.name})`, isDefault: o.isDefault, upchargeMinor: priceOf(o.id)?.amountMinor ?? 0 })) })),
     }];
   });
 
-  res.json({
-    data: {
-      location: { id: location.id, name: location.name, timezone: location.timezone },
-      currencyCode: location.currencyCode,
-      channel, at: now.toISOString(),
-      categories: [...categoryMap.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
-      combos: comboRows,
-    },
-  });
+  return {
+    location: { id: location.id, name: location.name, timezone: location.timezone },
+    currencyCode: location.currencyCode,
+    channel, at: now.toISOString(),
+    // the branch's tax rules, so the POS can show the same totals the server will compute
+    tax: taxProfile
+      ? {
+          pricesIncludeTax: taxProfile.pricesIncludeTax,
+          rules: taxProfile.rules.map((r) => ({ ruleId: r.id, name: r.name, authorityCode: r.authorityCode, rateBp: toBasisPoints(r.ratePercent.toString()), taxCategoryId: r.taxCategoryId, orderTypes: r.orderTypes as string[], validFrom: r.validFrom?.toISOString() ?? null, validTo: r.validTo?.toISOString() ?? null })),
+        }
+      : null,
+    categories: [...categoryMap.values()].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)) as SellableCategory[],
+    combos: comboRows as SellableCombo[],
+  };
+}
+
+catalog.get("/sellable", "menu.view", async (req, res) => {
+  res.json({ data: await buildSellableMenu(sellableQuerySchema.parse(req.query)) });
 });
 
 export const catalogRouter = catalog.router;

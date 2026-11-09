@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
-import type { OrderChannel, OrderStatus } from "../src/generated/prisma/client.js";
+import type { OrderChannel, LegacyOrderStatus as OrderStatus } from "../src/generated/prisma/client.js";
 import { prisma } from "../src/legacy/prisma.js";
 
 // Idempotent seeder (safe to run repeatedly):

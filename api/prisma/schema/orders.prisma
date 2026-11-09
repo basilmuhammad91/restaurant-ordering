@@ -1,0 +1,404 @@
+// ORDERS, PAYMENTS, SHIFTS AND CASH.
+// An order is a SNAPSHOT: names, prices, taxes and discounts are copied onto it when it is placed, so
+// changing the menu or a tax rate later never alters a past order. Money is integer minor units.
+// Payments, refunds and cash movements are append-only; a mistake is corrected by a new row, never an edit.
+// (Laravel: orders + order_items + payments tables, with the invoice math frozen at checkout.)
+
+enum OrderStatus {
+  OPEN
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+
+  @@map("order_status")
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum OrderLineKind {
+  ITEM
+  COMBO
+  COMBO_ITEM
+}
+
+enum OrderLineStatus {
+  NEW
+  PREPARING
+  READY
+  SERVED
+  VOIDED
+}
+
+enum DiscountSource {
+  MANUAL
+  COUPON
+  PROMOTION
+}
+
+enum DiscountValueType {
+  PERCENT
+  AMOUNT
+}
+
+enum PaymentRecordStatus {
+  CAPTURED
+  VOIDED
+}
+
+enum CashMovementType {
+  CASH_IN
+  CASH_OUT
+  PAID_OUT
+  SAFE_DROP
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum ZReportScope {
+  SHIFT
+  DAY
+}
+
+/// The id is chosen by the client (a UUID), so a POS that retries after a dropped connection can never
+/// create the same order twice: the second attempt finds the first.
+model Order {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  tenantId         String        @db.Uuid
+  brandId          String        @db.Uuid
+  locationId       String        @db.Uuid
+  /// The trading day (see businessDateOf): a bar open until 2 am trades on yesterday's date.
+  businessDate     DateTime      @db.Date
+  orderType        OrderType
+  channel          PriceChannel
+  status           OrderStatus   @default(PENDING)
+  paymentStatus    PaymentStatus @default(UNPAID)
+  /// "KH-0042" style number shown to staff and customers; assigned atomically per branch and day.
+  displayNumber    Int?
+  aggregatorName   String?
+  aggregatorRef    String?
+  customerName     String?
+  customerPhone    String?
+  tableId          String?       @db.Uuid
+  covers           Int?
+  deliveryAddress  Json?
+  currencyCode     String        @db.Char(3)
+  subtotalMinor    Int
+  discountMinor    Int           @default(0)
+  taxMinor         Int           @default(0)
+  deliveryFeeMinor Int           @default(0)
+  tipMinor         Int           @default(0)
+  totalMinor       Int
+  paidMinor        Int           @default(0)
+  refundedMinor    Int           @default(0)
+  pricesIncludeTax Boolean
+  notes            String?
+  occurredAt       DateTime      @db.Timestamptz(3)
+  placedAt         DateTime      @default(now()) @db.Timestamptz(3)
+  completedAt      DateTime?     @db.Timestamptz(3)
+  cancelledAt      DateTime?     @db.Timestamptz(3)
+  cancelReasonId   String?       @db.Uuid
+  cancelNote       String?
+  createdById      String?       @db.Uuid
+  cashShiftId      String?       @db.Uuid
+  updatedAt        DateTime      @updatedAt @db.Timestamptz(3)
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id])
+  location  Location           @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  lines     OrderLine[]
+  discounts OrderDiscount[]
+  events    OrderStatusEvent[]
+  payments  Payment[]
+  refunds   Refund[]
+
+  @@unique([tenantId, id])
+  @@unique([locationId, businessDate, displayNumber])
+  @@index([tenantId, locationId, businessDate])
+  @@index([tenantId, locationId, status])
+  @@map("orders")
+}
+
+model OrderLine {
+  id                  String          @id @default(uuid(7)) @db.Uuid
+  tenantId            String          @db.Uuid
+  locationId          String          @db.Uuid
+  orderId             String          @db.Uuid
+  /// A combo child points at its combo line, so each part can consume stock and show on its own station.
+  parentLineId        String?         @db.Uuid
+  kind                OrderLineKind
+  variantId           String?         @db.Uuid
+  comboId             String?         @db.Uuid
+  nameSnapshot        String
+  variantNameSnapshot String?
+  quantity            Int
+  /// Price of ONE unit including its modifiers.
+  unitPriceMinor      Int
+  modifiersTotalMinor Int             @default(0)
+  lineSubtotalMinor   Int
+  discountMinor       Int             @default(0)
+  taxMinor            Int             @default(0)
+  lineTotalMinor      Int
+  stationKey          String?
+  status              OrderLineStatus @default(NEW)
+  sentToKitchenAt     DateTime?       @db.Timestamptz(3)
+  readyAt             DateTime?       @db.Timestamptz(3)
+  voidedAt            DateTime?       @db.Timestamptz(3)
+  voidedById          String?         @db.Uuid
+  voidReasonId        String?         @db.Uuid
+  voidNote            String?
+  voidApprovalId      String?         @db.Uuid
+  notes               String?
+  sortOrder           Int             @default(0)
+
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  order     Order               @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Cascade)
+  modifiers OrderLineModifier[]
+  taxes     OrderLineTax[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, orderId])
+  @@index([tenantId, locationId, status])
+  @@map("order_lines")
+}
+
+model OrderLineModifier {
+  id           String @id @default(uuid(7)) @db.Uuid
+  tenantId     String @db.Uuid
+  lineId       String @db.Uuid
+  optionId     String @db.Uuid
+  nameSnapshot String
+  priceMinor   Int
+  quantity     Int    @default(1)
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id])
+  line   OrderLine @relation(fields: [tenantId, lineId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, lineId])
+  @@map("order_line_modifiers")
+}
+
+/// The stored tax breakdown: what each authority was owed on each line (receipts and tax reports read this).
+model OrderLineTax {
+  id               String  @id @default(uuid(7)) @db.Uuid
+  tenantId         String  @db.Uuid
+  lineId           String  @db.Uuid
+  ruleId           String? @db.Uuid
+  ruleNameSnapshot String
+  authorityCode    String
+  rateBp           Int
+  baseMinor        Int
+  taxMinor         Int
+  isInclusive      Boolean
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id])
+  line   OrderLine @relation(fields: [tenantId, lineId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, lineId])
+  @@map("order_line_taxes")
+}
+
+model OrderDiscount {
+  id          String            @id @default(uuid(7)) @db.Uuid
+  tenantId    String            @db.Uuid
+  orderId     String            @db.Uuid
+  source      DiscountSource    @default(MANUAL)
+  valueType   DiscountValueType
+  /// percent in basis points (1000 = 10%), or minor units for AMOUNT
+  value       Int
+  amountMinor Int
+  reasonId    String?           @db.Uuid
+  note        String?
+  appliedById String?           @db.Uuid
+  approvalId  String?           @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, orderId])
+  @@map("order_discounts")
+}
+
+/// Append-only history of an order's status; gives prep-time and cancellation metrics.
+model OrderStatusEvent {
+  id         String       @id @default(uuid(7)) @db.Uuid
+  tenantId   String       @db.Uuid
+  orderId    String       @db.Uuid
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  at         DateTime     @default(now()) @db.Timestamptz(3)
+  byUserId   String?      @db.Uuid
+  note       String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  order  Order  @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, orderId, at])
+  @@map("order_status_events")
+}
+
+/// Append-only. Split payments are several rows. amountMinor is what settled the bill; tenderedMinor is what
+/// the customer handed over (cash can exceed the bill; the difference is changeMinor).
+model Payment {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  tenantId        String              @db.Uuid
+  locationId      String              @db.Uuid
+  orderId         String              @db.Uuid
+  businessDate    DateTime            @db.Date
+  paymentMethodId String              @db.Uuid
+  amountMinor     Int
+  tenderedMinor   Int
+  changeMinor     Int                 @default(0)
+  tipMinor        Int                 @default(0)
+  currencyCode    String              @db.Char(3)
+  reference       String?
+  status          PaymentRecordStatus @default(CAPTURED)
+  cashShiftId     String?             @db.Uuid
+  receivedById    String?             @db.Uuid
+  occurredAt      DateTime            @default(now()) @db.Timestamptz(3)
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  order         Order         @relation(fields: [tenantId, orderId], references: [tenantId, id])
+  paymentMethod PaymentMethod @relation(fields: [tenantId, paymentMethodId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@index([tenantId, locationId, businessDate])
+  @@index([tenantId, orderId])
+  @@map("payments")
+}
+
+model Refund {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  tenantId        String   @db.Uuid
+  locationId      String   @db.Uuid
+  orderId         String   @db.Uuid
+  businessDate    DateTime @db.Date
+  amountMinor     Int
+  paymentMethodId String   @db.Uuid
+  reasonId        String   @db.Uuid
+  note            String?
+  cashShiftId     String?  @db.Uuid
+  requestedById   String?  @db.Uuid
+  approvalId      String?  @db.Uuid
+  occurredAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  order         Order         @relation(fields: [tenantId, orderId], references: [tenantId, id])
+  paymentMethod PaymentMethod @relation(fields: [tenantId, paymentMethodId], references: [tenantId, id])
+
+  @@index([tenantId, locationId, businessDate])
+  @@index([tenantId, orderId])
+  @@map("refunds")
+}
+
+/// Atomic per-branch, per-day counter behind the order number.
+model OrderSequence {
+  tenantId     String   @db.Uuid
+  locationId   String   @db.Uuid
+  businessDate DateTime @db.Date
+  lastNumber   Int      @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@id([locationId, businessDate])
+  @@index([tenantId])
+  @@map("order_sequences")
+}
+
+/// A till / drawer at a branch.
+model CashRegister {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  tenantId   String    @db.Uuid
+  locationId String    @db.Uuid
+  name       String
+  isActive   Boolean   @default(true)
+  deletedAt  DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id])
+  shifts CashShift[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, locationId])
+  @@map("cash_registers")
+}
+
+model CashShift {
+  id                String      @id @default(uuid(7)) @db.Uuid
+  tenantId          String      @db.Uuid
+  locationId        String      @db.Uuid
+  registerId        String      @db.Uuid
+  businessDate      DateTime    @db.Date
+  status            ShiftStatus @default(OPEN)
+  currencyCode      String      @db.Char(3)
+  openedById        String      @db.Uuid
+  openedAt          DateTime    @default(now()) @db.Timestamptz(3)
+  openingFloatMinor Int
+  closedById        String?     @db.Uuid
+  closedAt          DateTime?   @db.Timestamptz(3)
+  expectedCashMinor Int?
+  countedCashMinor  Int?
+  varianceMinor     Int?
+  /// A blind close hides the expected amount from the person counting.
+  isBlindClose      Boolean     @default(false)
+  notes             String?
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  register  CashRegister   @relation(fields: [tenantId, registerId], references: [tenantId, id])
+  movements CashMovement[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, locationId, status])
+  @@index([tenantId, locationId, businessDate])
+  @@map("cash_shifts")
+}
+
+model CashMovement {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  tenantId    String           @db.Uuid
+  locationId  String           @db.Uuid
+  shiftId     String           @db.Uuid
+  type        CashMovementType
+  amountMinor Int
+  reasonId    String?          @db.Uuid
+  note        String?
+  approvalId  String?          @db.Uuid
+  createdById String?          @db.Uuid
+  occurredAt  DateTime         @default(now()) @db.Timestamptz(3)
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id])
+  shift  CashShift @relation(fields: [tenantId, shiftId], references: [tenantId, id])
+
+  @@index([tenantId, shiftId])
+  @@map("cash_movements")
+}
+
+/// Immutable snapshot of a shift's (or a day's) totals, taken at close, so a later change to the menu,
+/// a tax rate or a user's name never rewrites what the Z-report said that night.
+model ZReport {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  tenantId      String       @db.Uuid
+  locationId    String       @db.Uuid
+  businessDate  DateTime     @db.Date
+  scope         ZReportScope
+  cashShiftId   String?      @db.Uuid
+  generatedById String?      @db.Uuid
+  generatedAt   DateTime     @default(now()) @db.Timestamptz(3)
+  data          Json
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, locationId, businessDate])
+  @@map("z_reports")
+}

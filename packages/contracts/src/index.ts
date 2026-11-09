@@ -7,6 +7,8 @@ export * from "./schemas/org.js";
 export * from "./schemas/iam.js";
 export * from "./schemas/platform.js";
 export * from "./schemas/catalog.js";
+export * from "./schemas/orders.js";
 export * from "./catalog.js";
+export * from "./orders.js";
 export * from "./theme.js";
 export * from "./brand.js";

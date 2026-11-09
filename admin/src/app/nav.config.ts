@@ -47,12 +47,12 @@ export const NAV: NavGroup[] = [
   {
     label: "Menu",
     items: [
-      { label: "Products", to: "/menu/products", icon: Utensils, anyOf: ["menu.view"], soon: true },
-      { label: "Categories", to: "/menu/categories", icon: Layers, anyOf: ["menu.view"], soon: true },
-      { label: "Modifier groups", to: "/menu/modifiers", icon: SlidersHorizontal, anyOf: ["menu.view"], soon: true },
-      { label: "Combos & deals", to: "/menu/combos", icon: Gift, anyOf: ["menu.view"], soon: true },
-      { label: "Menus & dayparts", to: "/menu/menus", icon: CalendarClock, anyOf: ["menu.view"], soon: true },
-      { label: "Branch availability (86)", to: "/menu/availability", icon: Soup, anyOf: ["menu.availability.toggle"], soon: true },
+      { label: "Products", to: "/menu/products", icon: Utensils, anyOf: ["menu.view"] },
+      { label: "Categories", to: "/menu/categories", icon: Layers, anyOf: ["menu.view"] },
+      { label: "Modifier groups", to: "/menu/modifiers", icon: SlidersHorizontal, anyOf: ["menu.view"] },
+      { label: "Combos & deals", to: "/menu/combos", icon: Gift, anyOf: ["menu.view"] },
+      { label: "Menus & dayparts", to: "/menu/menus", icon: CalendarClock, anyOf: ["menu.view"] },
+      { label: "Branch availability (86)", to: "/menu/availability", icon: Soup, anyOf: ["menu.availability.toggle"] },
     ],
   },
   {

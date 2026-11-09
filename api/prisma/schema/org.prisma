@@ -57,6 +57,19 @@ model Currency {
 }
 
 model Tenant {
+  orders                Order[]
+  orderLines            OrderLine[]
+  orderLineModifiers    OrderLineModifier[]
+  orderLineTaxes        OrderLineTax[]
+  orderDiscounts        OrderDiscount[]
+  orderStatusEvents     OrderStatusEvent[]
+  payments              Payment[]
+  refunds               Refund[]
+  orderSequences        OrderSequence[]
+  cashRegisters         CashRegister[]
+  cashShifts            CashShift[]
+  cashMovements         CashMovement[]
+  zReports              ZReport[]
   categories            Category[]
   products              Product[]
   productVariants       ProductVariant[]
@@ -154,6 +167,7 @@ model Brand {
 
 /// A place that sells or holds stock. Branch = type BRANCH; warehouses and central kitchens only hold stock.
 model Location {
+  orders               Order[]
   prices               Price[]
   availability         LocationAvailability[]
   id                   String                 @id @default(uuid(7)) @db.Uuid
@@ -317,6 +331,8 @@ model TaxRule {
 }
 
 model PaymentMethod {
+  payments          Payment[]
+  refunds           Refund[]
   id                String            @id @default(uuid(7)) @db.Uuid
   tenantId          String            @db.Uuid
   name              String

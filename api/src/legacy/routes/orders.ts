@@ -1,4 +1,4 @@
-import type { OrderStatus } from "../../generated/prisma/client.js";
+import type { LegacyOrderStatus as OrderStatus } from "../../generated/prisma/client.js";
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../prisma.js";

@@ -17,13 +17,15 @@ enum OrderChannel {
   IOS
 }
 
-enum OrderStatus {
+enum LegacyOrderStatus {
   PENDING
   CONFIRMED
   PREPARING
   READY
   COMPLETED
   CANCELLED
+
+  @@map("OrderStatus")
 }
 
 model LegacyUser {
@@ -69,7 +71,7 @@ model LegacyOrder {
   id         Int               @id @default(autoincrement())
   userId     Int
   user       LegacyUser        @relation(fields: [userId], references: [id])
-  status     OrderStatus       @default(PENDING)
+  status     LegacyOrderStatus @default(PENDING)
   channel    OrderChannel      @default(WEB)
   totalCents Int
   notes      String?

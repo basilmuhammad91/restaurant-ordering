@@ -33,6 +33,15 @@ export const LOCATION_SCOPED: Readonly<Record<string, { field: string; nullable:
   AuditLog: { field: "locationId", nullable: false }, // company-wide entries are hidden from branch-limited users
   Notification: { field: "locationId", nullable: true },
   LocationAvailability: { field: "locationId", nullable: false },
+  Order: { field: "locationId", nullable: false },
+  OrderLine: { field: "locationId", nullable: false },
+  Payment: { field: "locationId", nullable: false },
+  Refund: { field: "locationId", nullable: false },
+  OrderSequence: { field: "locationId", nullable: false },
+  CashRegister: { field: "locationId", nullable: false },
+  CashShift: { field: "locationId", nullable: false },
+  CashMovement: { field: "locationId", nullable: false },
+  ZReport: { field: "locationId", nullable: false },
   Price: { field: "locationId", nullable: true }, // company-wide (price book) prices stay visible; branch overrides are branch-scoped
 };
 

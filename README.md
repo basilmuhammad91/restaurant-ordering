@@ -28,12 +28,13 @@ Built as a portfolio project to learn the Node.js ecosystem (coming from Laravel
 
 ## Multi-tenant admin app (SaaS rebuild, in progress)
 
-The project is being evolved into a multi-tenant restaurant management SaaS, one phase at a time (see [`docs/PROGRESS.md`](docs/PROGRESS.md)). **Phase 1** is done: tenants, brands and branches, users, tenant-defined roles with `module.action` permissions and approval limits, an append-only audit log, and a new admin app in [`admin/`](admin) (shadcn/ui, TanStack Query/Table). The API lives under `/api/v1`; the original storefront API is untouched.
+The project is being evolved into a multi-tenant restaurant management SaaS, one phase at a time (see [`docs/PROGRESS.md`](docs/PROGRESS.md)). **Phases 1, 1B and 2a** are done: tenants, brands and branches, users, tenant-defined roles with `module.action` permissions and approval limits, an append-only audit log, a Restoflux super-admin console, per-organization theme colours, the menu (categories, products with sizes and add-ons, combos, dayparts, prices, per-branch "86"), and a new admin app in [`admin/`](admin) (shadcn/ui, TanStack Query/Table). The API lives under `/api/v1`; the original storefront API is untouched.
 
 ```bash
 npm install                                  # installs every workspace
 npm run bootstrap:default-tenant -w api      # one-off: creates the default tenant (idempotent)
 npm run seed:demo -w api                     # demo tenant, one user per role; prints random passwords once
+npm run seed:demo-menu -w api                # adds the demo menu to an existing demo tenant (a fresh seed:demo already has it)
 npm run dev                                  # API on :4000 and admin on :5174, together
 ```
 
