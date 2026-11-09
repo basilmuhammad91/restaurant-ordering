@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    // Modern Node ESM: imports in src must use the ".js" extension (e.g. "./app.js"),
+    // even though the file is app.ts. This is how Node's ESM resolver works.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "lib": ["es2023"],
+    "types": ["node"],
+
+    "rootDir": ".",
+    "outDir": "./dist",
+    "noEmit": true,
+    "sourceMap": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src", "tests", "scripts", "prisma.config.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

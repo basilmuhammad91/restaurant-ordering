@@ -1,0 +1,12 @@
+# dependencies, builds, env files (covers api/ and web/)
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.vercel/
+.DS_Store
+
+# generated Prisma client
+api/src/generated/

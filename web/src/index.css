@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* Design tokens: Tailwind v4 turns these into utilities (bg-cream, text-ember, font-display, ...) */
+@theme {
+  --color-cream: #faf6ef;
+  --color-paper: #ffffff;
+  --color-ink: #2b2118;
+  --color-muted: #7a6d5f;
+  --color-line: #e8dfd0;
+  --color-ember: #b8461f;
+  --color-ember-dark: #963717;
+  --color-leaf: #3f6b45;
+  --font-display: "Georgia", "Times New Roman", serif;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
