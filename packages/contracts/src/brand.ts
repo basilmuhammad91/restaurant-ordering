@@ -1,0 +1,23 @@
+// The product's name, colour and logo mark, shared by the admin app (and, from Phase 2, the storefront).
+// Keep in sync with web/src/brand.ts until the storefront joins the workspace and imports this instead.
+export const BRAND = {
+  name: "Restoflux",
+  lead: "Resto", // wordmark is "Resto" + "flux", with the second part in the accent colour
+  accent: "flux",
+  tagline: "Order smarter. Serve faster.",
+  color: "#a3141c", // deep red
+} as const;
+
+/** The logo mark: a serving cloche over a plate, with a flowing wave beneath. Plain SVG markup. */
+export function markSvg(size = 32): string {
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="${BRAND.name} logo">` +
+    `<defs><linearGradient id="rf-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4222c"/><stop offset="1" stop-color="#8a0f17"/></linearGradient></defs>` +
+    `<rect width="48" height="48" rx="12" fill="url(#rf-g)"/>` +
+    `<path d="M10.5 29.5a13.5 13.5 0 0 1 27 0z" fill="#fff"/>` +
+    `<circle cx="24" cy="14.4" r="2.2" fill="#fff"/>` +
+    `<rect x="7.5" y="31.6" width="33" height="2.6" rx="1.3" fill="#fff"/>` +
+    `<path d="M8 39.6q4-4.6 8 0t8 0 8 0 8 0" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="2.4" stroke-linecap="round"/>` +
+    `</svg>`
+  );
+}

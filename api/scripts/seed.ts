@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import { randomUUID } from "node:crypto";
 import type { OrderChannel, OrderStatus } from "../src/generated/prisma/client.js";
-import { prisma } from "../src/lib/prisma.js";
+import { prisma } from "../src/legacy/prisma.js";
 
 // Idempotent seeder (safe to run repeatedly):
 //   npm run db:seed                      -> menu + deals + demo orders (demo orders only if none exist yet)
@@ -44,14 +44,14 @@ async function seedMenu() {
   let created = 0;
   let repriced = 0;
   for (const [categoryName, items] of Object.entries(menu)) {
-    const category = await prisma.category.upsert({ where: { name: categoryName }, update: {}, create: { name: categoryName } });
+    const category = await prisma.legacyCategory.upsert({ where: { name: categoryName }, update: {}, create: { name: categoryName } });
     for (const { legacyPriceCents, ...item } of items) {
-      const existing = await prisma.menuItem.findFirst({ where: { name: item.name, categoryId: category.id } });
+      const existing = await prisma.legacyMenuItem.findFirst({ where: { name: item.name, categoryId: category.id } });
       if (!existing) {
-        await prisma.menuItem.create({ data: { ...item, categoryId: category.id } });
+        await prisma.legacyMenuItem.create({ data: { ...item, categoryId: category.id } });
         created++;
       } else if (existing.priceCents === legacyPriceCents && existing.priceCents !== item.priceCents) {
-        await prisma.menuItem.update({ where: { id: existing.id }, data: { priceCents: item.priceCents } });
+        await prisma.legacyMenuItem.update({ where: { id: existing.id }, data: { priceCents: item.priceCents } });
         repriced++;
       }
     }
@@ -60,13 +60,13 @@ async function seedMenu() {
 }
 
 async function seedDeals() {
-  const byName = new Map((await prisma.menuItem.findMany()).map((m) => [m.name, m]));
+  const byName = new Map((await prisma.legacyMenuItem.findMany()).map((m) => [m.name, m]));
   let created = 0;
   for (const d of deals) {
-    if (await prisma.deal.findFirst({ where: { name: d.name } })) continue;
+    if (await prisma.legacyDeal.findFirst({ where: { name: d.name } })) continue;
     const parts = Object.entries(d.parts).map(([name, quantity]) => ({ menuItemId: byName.get(name)!.id, quantity }));
     const originalPriceCents = Object.entries(d.parts).reduce((sum, [name, qty]) => sum + qty * byName.get(name)!.priceCents, 0);
-    await prisma.deal.create({
+    await prisma.legacyDeal.create({
       data: { name: d.name, description: d.description, dealPriceCents: rs(d.dealRs), originalPriceCents, items: { create: parts } },
     });
     created++;
@@ -95,12 +95,12 @@ function pickWeighted<T extends string>(rnd: () => number, weights: Record<T, nu
 async function seedDemoOrders(refresh: boolean) {
   const DEMO_DOMAIN = "@seed.example.test";
   const demoWhere = { user: { email: { endsWith: DEMO_DOMAIN } } };
-  const existing = await prisma.order.count({ where: demoWhere });
+  const existing = await prisma.legacyOrder.count({ where: demoWhere });
   if (existing > 0 && !refresh) {
     console.log(`Demo orders: ${existing} already exist, skipped (use --refresh-demo to regenerate).`);
     return;
   }
-  if (refresh) await prisma.order.deleteMany({ where: demoWhere }); // order lines cascade
+  if (refresh) await prisma.legacyOrder.deleteMany({ where: demoWhere }); // order lines cascade
 
   // Demo customers get an unguessable random password, so nobody can log in as them.
   const names = ["Ayesha Khan", "Bilal Ahmed", "Sana Malik", "Usman Tariq", "Hira Siddiqui"];
@@ -108,7 +108,7 @@ async function seedDemoOrders(refresh: boolean) {
   for (const [i, name] of names.entries()) {
     const email = `demo${i + 1}${DEMO_DOMAIN}`;
     users.push(
-      await prisma.user.upsert({
+      await prisma.legacyUser.upsert({
         where: { email },
         update: {},
         create: { email, name, passwordHash: await bcrypt.hash(randomUUID(), 4) },
@@ -116,8 +116,8 @@ async function seedDemoOrders(refresh: boolean) {
     );
   }
 
-  const items = await prisma.menuItem.findMany({ where: { available: true } });
-  const activeDeals = await prisma.deal.findMany({ where: { isActive: true } });
+  const items = await prisma.legacyMenuItem.findMany({ where: { available: true } });
+  const activeDeals = await prisma.legacyDeal.findMany({ where: { isActive: true } });
   const rnd = mulberry32(42);
   const pick = <T,>(arr: T[]) => arr[Math.floor(rnd() * arr.length)]!;
   const now = Date.now();
@@ -158,7 +158,7 @@ async function seedDemoOrders(refresh: boolean) {
       : [];
     const totalCents = [...lines.values(), ...dealLines].reduce((s, l) => s + l.quantity * l.unitPriceCents, 0);
 
-    await prisma.order.create({
+    await prisma.legacyOrder.create({
       data: {
         userId: pick(users).id,
         status,

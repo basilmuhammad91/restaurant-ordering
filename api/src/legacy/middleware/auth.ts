@@ -1,5 +1,5 @@
 import type { RequestHandler } from "express";
-import { verifyToken } from "../lib/jwt.js";
+import { verifyToken } from "../jwt.js";
 import { HttpError } from "./error.js";
 
 // Equivalent of Laravel's `auth:sanctum` middleware.

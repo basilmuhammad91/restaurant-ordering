@@ -1,7 +1,7 @@
-import type { OrderStatus } from "../generated/prisma/client.js";
+import type { OrderStatus } from "../../generated/prisma/client.js";
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma.js";
+import { prisma } from "../prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 import { activeDealWhere } from "./deals.js";
@@ -65,12 +65,12 @@ ordersRouter.post("/", async (req, res) => {
   const dealQty = new Map<number, number>();
   for (const d of deals) dealQty.set(d.dealId, (dealQty.get(d.dealId) ?? 0) + d.quantity);
 
-  const menuItems = await prisma.menuItem.findMany({ where: { id: { in: [...qty.keys()] } } });
+  const menuItems = await prisma.legacyMenuItem.findMany({ where: { id: { in: [...qty.keys()] } } });
   if (menuItems.length !== qty.size) throw new HttpError(422, "One or more menu items do not exist");
   if (menuItems.some((m) => !m.available)) throw new HttpError(422, "One or more menu items are unavailable");
 
   // Deals must be switched on, inside their schedule, and have every part in stock.
-  const dealRows = await prisma.deal.findMany({
+  const dealRows = await prisma.legacyDeal.findMany({
     where: { id: { in: [...dealQty.keys()] }, ...activeDealWhere() },
     include: { items: { include: { menuItem: { select: { available: true } } } } },
   });
@@ -95,7 +95,7 @@ ordersRouter.post("/", async (req, res) => {
     dealLines.reduce((sum, l) => sum + l.quantity * l.unitPriceCents, 0);
 
   // A nested create runs as one transaction: order and lines both save, or neither does.
-  const order = await prisma.order.create({
+  const order = await prisma.legacyOrder.create({
     data: {
       userId: req.user!.id,
       totalCents,
@@ -112,21 +112,21 @@ ordersRouter.get("/", async (req, res) => {
   const { status, page, limit } = listQuery.parse(req.query);
   const where = { ...scope(req.user!), ...(status && { status }) };
   const [orders, total] = await Promise.all([
-    prisma.order.findMany({
+    prisma.legacyOrder.findMany({
       where,
       include,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.order.count({ where }),
+    prisma.legacyOrder.count({ where }),
   ]);
   res.json({ data: orders, meta: { page, limit, total } });
 });
 
 ordersRouter.get("/:id", async (req, res) => {
   const { id } = idParam.parse(req.params);
-  const order = await prisma.order.findFirst({ where: { id, ...scope(req.user!) }, include });
+  const order = await prisma.legacyOrder.findFirst({ where: { id, ...scope(req.user!) }, include });
   if (!order) throw new HttpError(404, "Not found");
   res.json({ data: order });
 });
@@ -134,16 +134,16 @@ ordersRouter.get("/:id", async (req, res) => {
 // Compare-and-set: the UPDATE only matches if the status is still what we read,
 // so two concurrent requests can't both apply a transition.
 async function changeStatus(id: number, from: OrderStatus, to: OrderStatus) {
-  const { count } = await prisma.order.updateMany({ where: { id, status: from }, data: { status: to } });
+  const { count } = await prisma.legacyOrder.updateMany({ where: { id, status: from }, data: { status: to } });
   if (count === 0) throw new HttpError(409, "Order status changed, please retry");
-  return prisma.order.findUniqueOrThrow({ where: { id }, include });
+  return prisma.legacyOrder.findUniqueOrThrow({ where: { id }, include });
 }
 
 ordersRouter.patch("/:id/status", requireRole("ADMIN"), async (req, res) => {
   const { id } = idParam.parse(req.params);
   const { status } = z.object({ status: listQuery.shape.status.unwrap() }).parse(req.body);
 
-  const order = await prisma.order.findUnique({ where: { id } });
+  const order = await prisma.legacyOrder.findUnique({ where: { id } });
   if (!order) throw new HttpError(404, "Not found");
   if (!transitions[order.status].includes(status)) {
     throw new HttpError(409, `Cannot change status from ${order.status} to ${status}`);
@@ -154,7 +154,7 @@ ordersRouter.patch("/:id/status", requireRole("ADMIN"), async (req, res) => {
 // Customers can cancel their own order, but only while it is still PENDING.
 ordersRouter.post("/:id/cancel", async (req, res) => {
   const { id } = idParam.parse(req.params);
-  const order = await prisma.order.findFirst({ where: { id, ...scope(req.user!) } });
+  const order = await prisma.legacyOrder.findFirst({ where: { id, ...scope(req.user!) } });
   if (!order) throw new HttpError(404, "Not found");
   if (req.user!.role !== "ADMIN" && order.status !== "PENDING") {
     throw new HttpError(409, "Only pending orders can be cancelled");

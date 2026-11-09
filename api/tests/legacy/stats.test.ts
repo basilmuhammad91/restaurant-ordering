@@ -1,9 +1,9 @@
 import bcrypt from "bcrypt";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createApp } from "../src/app.js";
-import { signToken } from "../src/lib/jwt.js";
-import { prisma } from "../src/lib/prisma.js";
+import { createApp } from "../../src/app.js";
+import { signToken } from "../../src/legacy/jwt.js";
+import { prisma } from "../../src/legacy/prisma.js";
 
 // The stats endpoint is global, so these tests insert orders in a date range (March 2001)
 // that can never overlap the seeded demo data, and assert on exactly that range.
@@ -20,18 +20,18 @@ beforeAll(async () => {
   const passwordHash = await bcrypt.hash("irrelevant-password", 4);
   const [a, c] = await Promise.all(
     (["ADMIN", "CUSTOMER"] as const).map((role) =>
-      prisma.user.create({ data: { email: `${role.toLowerCase()}-${stamp}${domain}`, name: role, passwordHash, role } }),
+      prisma.legacyUser.create({ data: { email: `${role.toLowerCase()}-${stamp}${domain}`, name: role, passwordHash, role } }),
     ),
   );
   admin = `Bearer ${signToken(a!)}`;
   customer = `Bearer ${signToken(c!)}`;
 
-  const cat = await prisma.category.create({ data: { name: `stats-cat-${stamp}` } });
+  const cat = await prisma.legacyCategory.create({ data: { name: `stats-cat-${stamp}` } });
   aName = `stats-a-${stamp}`;
   bName = `stats-b-${stamp}`;
-  const itemA = await prisma.menuItem.create({ data: { name: aName, priceCents: 1000, categoryId: cat.id } });
-  const itemB = await prisma.menuItem.create({ data: { name: bName, priceCents: 500, categoryId: cat.id } });
-  const deal = await prisma.deal.create({
+  const itemA = await prisma.legacyMenuItem.create({ data: { name: aName, priceCents: 1000, categoryId: cat.id } });
+  const itemB = await prisma.legacyMenuItem.create({ data: { name: bName, priceCents: 500, categoryId: cat.id } });
+  const deal = await prisma.legacyDeal.create({
     data: {
       name: `stats-deal-${stamp}`,
       dealPriceCents: 2000,
@@ -44,18 +44,18 @@ beforeAll(async () => {
   const line = (menuItemId: number, quantity: number, unitPriceCents: number) => ({ menuItemId, quantity, unitPriceCents });
   // Times are Pakistan time (+05:00). o2 and o3 sit either side of local midnight, which is
   // the same UTC day, so they only land on different days if bucketing uses the right timezone.
-  await prisma.order.create({ data: { userId, status: "COMPLETED", channel: "WEB", totalCents: 2000, createdAt: new Date("2001-03-01T12:00:00+05:00"), items: { create: [line(itemA.id, 2, 1000)] } } });
-  await prisma.order.create({ data: { userId, status: "PENDING", channel: "ANDROID", totalCents: 500, createdAt: new Date("2001-03-01T23:30:00+05:00"), items: { create: [line(itemB.id, 1, 500)] } } });
-  await prisma.order.create({ data: { userId, status: "CANCELLED", channel: "POS", totalCents: 700, createdAt: new Date("2001-03-02T00:10:00+05:00"), items: { create: [line(itemA.id, 1, 1000)] } } });
-  await prisma.order.create({ data: { userId, status: "COMPLETED", channel: "IOS", totalCents: 4000, createdAt: new Date("2001-03-03T10:00:00+05:00"), deals: { create: [{ dealId: deal.id, dealName: deal.name, quantity: 2, unitPriceCents: 2000 }] } } });
+  await prisma.legacyOrder.create({ data: { userId, status: "COMPLETED", channel: "WEB", totalCents: 2000, createdAt: new Date("2001-03-01T12:00:00+05:00"), items: { create: [line(itemA.id, 2, 1000)] } } });
+  await prisma.legacyOrder.create({ data: { userId, status: "PENDING", channel: "ANDROID", totalCents: 500, createdAt: new Date("2001-03-01T23:30:00+05:00"), items: { create: [line(itemB.id, 1, 500)] } } });
+  await prisma.legacyOrder.create({ data: { userId, status: "CANCELLED", channel: "POS", totalCents: 700, createdAt: new Date("2001-03-02T00:10:00+05:00"), items: { create: [line(itemA.id, 1, 1000)] } } });
+  await prisma.legacyOrder.create({ data: { userId, status: "COMPLETED", channel: "IOS", totalCents: 4000, createdAt: new Date("2001-03-03T10:00:00+05:00"), deals: { create: [{ dealId: deal.id, dealName: deal.name, quantity: 2, unitPriceCents: 2000 }] } } });
 });
 
 afterAll(async () => {
-  await prisma.order.deleteMany({ where: { user: { email: { endsWith: domain } } } });
-  await prisma.deal.deleteMany({ where: { name: { startsWith: "stats-deal-" } } });
-  await prisma.menuItem.deleteMany({ where: { name: { startsWith: "stats-" } } });
-  await prisma.category.deleteMany({ where: { name: { startsWith: "stats-cat-" } } });
-  await prisma.user.deleteMany({ where: { email: { endsWith: domain } } });
+  await prisma.legacyOrder.deleteMany({ where: { user: { email: { endsWith: domain } } } });
+  await prisma.legacyDeal.deleteMany({ where: { name: { startsWith: "stats-deal-" } } });
+  await prisma.legacyMenuItem.deleteMany({ where: { name: { startsWith: "stats-" } } });
+  await prisma.legacyCategory.deleteMany({ where: { name: { startsWith: "stats-cat-" } } });
+  await prisma.legacyUser.deleteMany({ where: { email: { endsWith: domain } } });
   await prisma.$disconnect();
 });
 

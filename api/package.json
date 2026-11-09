@@ -15,7 +15,16 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "create-admin": "tsx scripts/create-admin.ts",
-    "db:seed": "tsx scripts/seed.ts"
+    "db:seed": "tsx scripts/seed.ts",
+    "predev": "npm run build -w @restoflux/contracts",
+    "pretest": "npm run build -w @restoflux/contracts",
+    "pretypecheck": "npm run build -w @restoflux/contracts",
+    "prebuild": "npm run build -w @restoflux/contracts",
+    "create-platform-admin": "tsx scripts/create-platform-admin.ts",
+    "create-tenant": "tsx scripts/create-tenant.ts",
+    "bootstrap:default-tenant": "tsx scripts/bootstrap-default-tenant.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "test:cleanup": "tsx scripts/purge-test-tenants.ts"
   },
   "keywords": [],
   "author": "",
@@ -31,7 +40,8 @@
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "@restoflux/contracts": "*"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
@@ -46,13 +56,6 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
-  },
-  "allowScripts": {
-    "prisma@7.10.1": true,
-    "@prisma/engines@7.10.1": true,
-    "esbuild@0.28.2": true,
-    "msgpackr-extract": false,
-    "bcrypt": false
   },
   "private": true,
   "engines": {

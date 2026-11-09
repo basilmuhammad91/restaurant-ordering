@@ -1,0 +1,145 @@
+// LEGACY MODELS: the original single-restaurant schema, kept ONLY until Phase 3 migrates its data.
+// The Prisma model names carry a Legacy prefix (so the natural names are free for the new schema) while
+// @@map keeps the real table names, so nothing is moved or altered in the database.
+// Delete this file when Phase 3 lands (see docs/DATA_MODEL.md section 6).
+
+enum LegacyRole {
+  CUSTOMER
+  ADMIN
+
+  @@map("Role")
+}
+
+enum OrderChannel {
+  WEB
+  POS
+  ANDROID
+  IOS
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+model LegacyUser {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         LegacyRole    @default(CUSTOMER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  orders       LegacyOrder[]
+
+  @@map("User")
+}
+
+model LegacyCategory {
+  id        Int              @id @default(autoincrement())
+  name      String           @unique
+  menuItems LegacyMenuItem[]
+
+  @@map("Category")
+}
+
+model LegacyMenuItem {
+  id          Int               @id @default(autoincrement())
+  name        String
+  description String?
+  priceCents  Int // money as integer cents: never use floats for money
+  imageUrl    String?
+  available   Boolean           @default(true)
+  categoryId  Int
+  category    LegacyCategory    @relation(fields: [categoryId], references: [id])
+  orderItems  LegacyOrderItem[]
+  dealItems   LegacyDealItem[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([categoryId])
+  @@map("MenuItem")
+}
+
+model LegacyOrder {
+  id         Int               @id @default(autoincrement())
+  userId     Int
+  user       LegacyUser        @relation(fields: [userId], references: [id])
+  status     OrderStatus       @default(PENDING)
+  channel    OrderChannel      @default(WEB)
+  totalCents Int
+  notes      String?
+  items      LegacyOrderItem[]
+  deals      LegacyOrderDeal[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("Order")
+}
+
+model LegacyOrderItem {
+  id             Int            @id @default(autoincrement())
+  orderId        Int
+  order          LegacyOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId     Int
+  menuItem       LegacyMenuItem @relation(fields: [menuItemId], references: [id])
+  quantity       Int
+  unitPriceCents Int // snapshot of the price at order time
+
+  @@index([orderId])
+  @@map("OrderItem")
+}
+
+// A bundle of menu items sold at a discounted price (e.g. "Summer Deal 1").
+// Money fields are integer minor units (paisa), like every other price here.
+model LegacyDeal {
+  id                 Int               @id @default(autoincrement())
+  name               String
+  description        String?
+  imageUrl           String?
+  dealPriceCents     Int
+  originalPriceCents Int // sum of the parts at creation time, shown struck through
+  isActive           Boolean           @default(true)
+  startsAt           DateTime?
+  endsAt             DateTime?
+  items              LegacyDealItem[]
+  orderDeals         LegacyOrderDeal[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@map("Deal")
+}
+
+model LegacyDealItem {
+  id         Int            @id @default(autoincrement())
+  dealId     Int
+  deal       LegacyDeal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  menuItemId Int
+  menuItem   LegacyMenuItem @relation(fields: [menuItemId], references: [id])
+  quantity   Int
+
+  @@unique([dealId, menuItemId])
+  @@map("DealItem")
+}
+
+// A deal on an order. name + unit price are snapshots, like OrderItem.unitPriceCents,
+// so later edits to the deal never change past orders.
+model LegacyOrderDeal {
+  id             Int         @id @default(autoincrement())
+  orderId        Int
+  order          LegacyOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dealId         Int
+  deal           LegacyDeal  @relation(fields: [dealId], references: [id])
+  dealName       String
+  quantity       Int
+  unitPriceCents Int
+
+  @@index([orderId])
+  @@map("OrderDeal")
+}

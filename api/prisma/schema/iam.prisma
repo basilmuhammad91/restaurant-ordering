@@ -1,0 +1,316 @@
+// IDENTITY & ACCESS: staff users, tenant-defined roles, permissions, sessions, approvals, audit,
+// notifications. See docs/DATA_MODEL.md section 3.3.
+// (Laravel: users + roles/permissions tables like spatie/laravel-permission, plus sessions and activity log.)
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum SessionAudience {
+  STAFF
+  CUSTOMER
+}
+
+enum ApprovalType {
+  VOID
+  REFUND
+  DISCOUNT
+  STOCK_ADJUSTMENT
+  STOCK_COUNT
+  TRANSFER
+  PURCHASE_ORDER
+  CASH_OUT
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+  CONSUMED
+}
+
+enum ApprovalMethod {
+  INLINE_PIN
+  INBOX
+}
+
+enum Severity {
+  INFO
+  WARN
+  CRITICAL
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  CUSTOMER
+}
+
+/// Staff account. Customers are a different table (added with orders). One tenant per user (email is global).
+model User {
+  id                String     @id @default(uuid(7)) @db.Uuid
+  tenantId          String     @db.Uuid
+  email             String     @unique // stored lower-case
+  name              String
+  phone             String?
+  passwordHash      String
+  /// Fast cashier login and inline manager override. Hashed like a password; never returned by the API.
+  posPinHash        String?
+  pinFailedAttempts Int        @default(0)
+  pinLockedUntil    DateTime?  @db.Timestamptz(3)
+  status            UserStatus @default(ACTIVE)
+  /// true = may see every location in the tenant; otherwise only those in UserLocation.
+  allLocations      Boolean    @default(false)
+  locale            String     @default("en")
+  lastLoginAt       DateTime?  @db.Timestamptz(3)
+  deletedAt         DateTime?  @db.Timestamptz(3)
+  createdAt         DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime   @updatedAt @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  roles              UserRole[]
+  locations          UserLocation[]
+  sessions           Session[]
+  approvalsRequested ApprovalRequest[] @relation("ApprovalRequestedBy")
+  approvalsDecided   ApprovalRequest[] @relation("ApprovalDecidedBy")
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@map("users")
+}
+
+/// Tenant-defined role (Owner, Branch Manager, ...). Permissions are strings from the shared catalog.
+model Role {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  tenantId           String    @db.Uuid
+  name               String
+  description        String?
+  isSystem           Boolean   @default(false)
+  /// The owner role: may edit/assign owner roles; the last owner cannot be removed.
+  isOwner            Boolean   @default(false)
+  /// true = bypasses amount thresholds (still audited).
+  unlimitedLimits    Boolean   @default(false)
+  maxDiscountPercent Decimal   @default(0) @db.Decimal(5, 2)
+  deletedAt          DateTime? @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  permissions RolePermission[]
+  limits      RoleLimit[]
+  users       UserRole[]
+
+  @@unique([tenantId, id])
+  @@map("roles")
+}
+
+model RolePermission {
+  id         String @id @default(uuid(7)) @db.Uuid
+  tenantId   String @db.Uuid
+  roleId     String @db.Uuid
+  permission String // validated against the catalog in packages/contracts
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  role   Role   @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([roleId, permission])
+  @@map("role_permissions")
+}
+
+/// Approval limits per role AND currency (a limit of 10,000 is meaningless without a currency).
+/// No row for a currency = the role has no limit authority there (everything needs approval).
+model RoleLimit {
+  id                   String @id @default(uuid(7)) @db.Uuid
+  tenantId             String @db.Uuid
+  roleId               String @db.Uuid
+  currencyCode         String @db.Char(3)
+  voidLimitMinor       Int
+  refundLimitMinor     Int
+  poApprovalLimitMinor Int
+  adjustmentLimitMinor Int
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  role   Role   @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([roleId, currencyCode])
+  @@map("role_limits")
+}
+
+model UserRole {
+  tenantId String @db.Uuid
+  userId   String @db.Uuid
+  roleId   String @db.Uuid
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+  role   Role   @relation(fields: [tenantId, roleId], references: [tenantId, id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([tenantId])
+  @@map("user_roles")
+}
+
+model UserLocation {
+  tenantId   String @db.Uuid
+  userId     String @db.Uuid
+  locationId String @db.Uuid
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  user     User     @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Cascade)
+
+  @@id([userId, locationId])
+  @@index([tenantId])
+  @@map("user_locations")
+}
+
+/// A login session. The refresh token is random, stored only as a hash, and rotated on every use.
+model Session {
+  id                   String          @id @default(uuid(7)) @db.Uuid
+  tenantId             String          @db.Uuid
+  userId               String          @db.Uuid
+  audience             SessionAudience @default(STAFF)
+  refreshTokenHash     String          @unique
+  /// The previous token's hash: presenting it again means a stolen token was replayed -> revoke the session.
+  prevRefreshTokenHash String?
+  userAgent            String?
+  ip                   String?
+  createdAt            DateTime        @default(now()) @db.Timestamptz(3)
+  lastUsedAt           DateTime        @default(now()) @db.Timestamptz(3)
+  expiresAt            DateTime        @db.Timestamptz(3)
+  revokedAt            DateTime?       @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [tenantId, userId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([prevRefreshTokenHash])
+  @@map("sessions")
+}
+
+/// Append-only login history (success and failure).
+model LoginEvent {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  tenantId       String?  @db.Uuid
+  userId         String?  @db.Uuid
+  emailAttempted String
+  success        Boolean
+  failureReason  String?
+  ip             String?
+  userAgent      String?
+  occurredAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, occurredAt(sort: Desc)])
+  @@index([userId, occurredAt(sort: Desc)])
+  @@map("login_events")
+}
+
+/// A request that needs a manager's approval (or an inline PIN override, recorded the same way).
+/// The requester retries the original action carrying the approval id; see docs/ARCHITECTURE.md 7.3.
+model ApprovalRequest {
+  id            String         @id @default(uuid(7)) @db.Uuid
+  tenantId      String         @db.Uuid
+  locationId    String?        @db.Uuid
+  type          ApprovalType
+  entityType    String
+  entityId      String?
+  payload       Json           @default("{}")
+  /// Hash of the exact action parameters; the retry must present the same hash.
+  payloadHash   String
+  amountMinor   Int?
+  currencyCode  String?        @db.Char(3)
+  reason        String
+  requestedById String         @db.Uuid
+  status        ApprovalStatus @default(PENDING)
+  method        ApprovalMethod @default(INBOX)
+  decidedById   String?        @db.Uuid
+  decidedAt     DateTime?      @db.Timestamptz(3)
+  decisionNote  String?
+  expiresAt     DateTime       @db.Timestamptz(3)
+  consumedAt    DateTime?      @db.Timestamptz(3)
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @db.Timestamptz(3)
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  requestedBy User   @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  decidedBy   User?  @relation("ApprovalDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([tenantId, status, createdAt(sort: Desc)])
+  @@index([tenantId, locationId])
+  @@map("approval_requests")
+}
+
+/// Append-only audit trail: who did what, when, where, with before/after values.
+model AuditLog {
+  id          String    @id @default(uuid(7)) @db.Uuid
+  tenantId    String    @db.Uuid
+  locationId  String?   @db.Uuid
+  actorUserId String?   @db.Uuid
+  actorType   ActorType @default(USER)
+  /// "module.action", e.g. orders.void, roles.permissions.update
+  action      String
+  entityType  String
+  entityId    String
+  before      Json?
+  after       Json?
+  reason      String?
+  requestId   String?
+  ip          String?
+  userAgent   String?
+  occurredAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, actorUserId, occurredAt(sort: Desc)])
+  @@index([tenantId, action])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  tenantId           String    @db.Uuid
+  locationId         String?   @db.Uuid
+  /// A specific recipient, or null = everyone who holds `requiredPermission` in scope.
+  userId             String?   @db.Uuid
+  requiredPermission String?
+  /// Free-form key from the notification catalog (LOW_STOCK, APPROVAL_PENDING, ...): new types need no migration.
+  type               String
+  severity           Severity  @default(INFO)
+  title              String
+  body               String?
+  entityType         String?
+  entityId           String?
+  /// Prevents alert storms: one open notification per key.
+  dedupeKey          String
+  readAt             DateTime? @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, dedupeKey])
+  @@index([tenantId, userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id       String  @id @default(uuid(7)) @db.Uuid
+  tenantId String  @db.Uuid
+  userId   String  @db.Uuid
+  type     String
+  inApp    Boolean @default(true)
+  email    Boolean @default(false)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([userId, type])
+  @@map("notification_preferences")
+}

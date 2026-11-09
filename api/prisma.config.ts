@@ -5,7 +5,7 @@ import { defineConfig, env } from "prisma/config";
 // (migrate, studio, db push) gets it from here. Runtime queries use the
 // pg driver adapter instead (see src/lib/prisma.ts, coming next).
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  schema: "prisma/schema",
   migrations: { path: "prisma/migrations" },
   datasource: { url: env("DATABASE_URL") },
 });

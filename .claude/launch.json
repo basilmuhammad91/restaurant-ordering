@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "api", "runtimeExecutable": "npm", "runtimeArgs": ["exec", "-w", "api", "--", "tsx", "src/server.ts"], "port": 4000 },
+    { "name": "admin", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev:admin"], "port": 5174 }
+  ]
+}

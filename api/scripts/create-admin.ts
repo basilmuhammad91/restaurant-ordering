@@ -1,5 +1,5 @@
 import bcrypt from "bcrypt";
-import { prisma } from "../src/lib/prisma.js";
+import { prisma } from "../src/legacy/prisma.js";
 
 // Usage: npm run create-admin -- you@example.com "Your Name" 'a-strong-password'
 // Like `php artisan tinker` / a seeder: the only way to get an ADMIN, since the
@@ -11,7 +11,7 @@ if (!email || !name || !password || password.length < 8) {
 }
 
 const passwordHash = await bcrypt.hash(password, 10);
-const user = await prisma.user.upsert({
+const user = await prisma.legacyUser.upsert({
   where: { email: email.toLowerCase() },
   update: { role: "ADMIN", passwordHash, name },
   create: { email: email.toLowerCase(), name, passwordHash, role: "ADMIN" },

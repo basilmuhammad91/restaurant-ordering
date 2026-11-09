@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma.js";
+import { prisma } from "../prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 
@@ -29,7 +29,7 @@ const include = { category: { select: { id: true, name: true } } } as const;
 
 menuItemsRouter.get("/", async (req, res) => {
   const { categoryId, available } = listQuery.parse(req.query);
-  const items = await prisma.menuItem.findMany({
+  const items = await prisma.legacyMenuItem.findMany({
     where: {
       ...(categoryId !== undefined && { categoryId }),
       ...(available !== undefined && { available }),
@@ -42,7 +42,7 @@ menuItemsRouter.get("/", async (req, res) => {
 
 menuItemsRouter.get("/:id", async (req, res) => {
   const { id } = idParam.parse(req.params);
-  const item = await prisma.menuItem.findUnique({ where: { id }, include });
+  const item = await prisma.legacyMenuItem.findUnique({ where: { id }, include });
   if (!item) throw new HttpError(404, "Not found");
   res.json({ data: item });
 });
@@ -52,20 +52,20 @@ const admin = [requireAuth, requireRole("ADMIN")];
 menuItemsRouter.post("/", ...admin, async (req, res) => {
   const data = createBody.parse(req.body);
   // A bad categoryId raises a foreign-key error, mapped to 409 by the error handler.
-  const item = await prisma.menuItem.create({ data, include });
+  const item = await prisma.legacyMenuItem.create({ data, include });
   res.status(201).json({ data: item });
 });
 
 menuItemsRouter.patch("/:id", ...admin, async (req, res) => {
   const { id } = idParam.parse(req.params);
   const data = updateBody.parse(req.body);
-  const item = await prisma.menuItem.update({ where: { id }, data, include });
+  const item = await prisma.legacyMenuItem.update({ where: { id }, data, include });
   res.json({ data: item });
 });
 
 // Items already ordered can't be deleted (FK, 409): mark them unavailable instead.
 menuItemsRouter.delete("/:id", ...admin, async (req, res) => {
   const { id } = idParam.parse(req.params);
-  await prisma.menuItem.delete({ where: { id } });
+  await prisma.legacyMenuItem.delete({ where: { id } });
   res.status(204).end();
 });

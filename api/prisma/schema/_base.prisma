@@ -1,0 +1,16 @@
+// Restoflux schema: one file per module (Prisma multi-file schema).
+// Like Laravel migrations + Eloquent models in one place: this folder is the source of truth.
+// `prisma migrate dev` diffs it against the DB and writes SQL migrations; `prisma generate`
+// creates the typed client in src/generated.
+//
+// Conventions (docs/DATA_MODEL.md): UUIDv7 ids, tenantId on every business table, money in minor
+// units, timestamptz, soft delete via deletedAt on master data, camelCase columns, snake_case plural tables.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

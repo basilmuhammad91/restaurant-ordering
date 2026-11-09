@@ -1,9 +1,9 @@
 import bcrypt from "bcrypt";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createApp } from "../src/app.js";
-import { signToken } from "../src/lib/jwt.js";
-import { prisma } from "../src/lib/prisma.js";
+import { createApp } from "../../src/app.js";
+import { signToken } from "../../src/legacy/jwt.js";
+import { prisma } from "../../src/legacy/prisma.js";
 
 const app = createApp();
 const stamp = Date.now();
@@ -18,15 +18,15 @@ let hiddenId = 0;
 beforeAll(async () => {
   const passwordHash = await bcrypt.hash("irrelevant-password", 4);
   const mk = (n: string, role: "ADMIN" | "CUSTOMER") =>
-    prisma.user.create({ data: { email: `${n}-${stamp}${domain}`, name: n, passwordHash, role } });
+    prisma.legacyUser.create({ data: { email: `${n}-${stamp}${domain}`, name: n, passwordHash, role } });
   const [a, c1, c2] = await Promise.all([mk("admin", "ADMIN"), mk("alice", "CUSTOMER"), mk("bob", "CUSTOMER")]);
   admin = `Bearer ${signToken(a)}`;
   alice = `Bearer ${signToken(c1)}`;
   bob = `Bearer ${signToken(c2)}`;
 
-  const cat = await prisma.category.create({ data: { name: `ord-cat-${stamp}` } });
+  const cat = await prisma.legacyCategory.create({ data: { name: `ord-cat-${stamp}` } });
   const item = (name: string, priceCents: number, available = true) =>
-    prisma.menuItem.create({ data: { name: `ord-${name}-${stamp}`, priceCents, available, categoryId: cat.id } });
+    prisma.legacyMenuItem.create({ data: { name: `ord-${name}-${stamp}`, priceCents, available, categoryId: cat.id } });
   pizzaId = (await item("pizza", 1250)).id;
   colaId = (await item("cola", 300)).id;
   hiddenId = (await item("hidden", 500, false)).id;
@@ -34,10 +34,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Children first: orders (lines cascade) -> menu items -> categories -> users.
-  await prisma.order.deleteMany({ where: { user: { email: { endsWith: domain } } } });
-  await prisma.menuItem.deleteMany({ where: { name: { startsWith: "ord-" } } });
-  await prisma.category.deleteMany({ where: { name: { startsWith: "ord-cat-" } } });
-  await prisma.user.deleteMany({ where: { email: { endsWith: domain } } });
+  await prisma.legacyOrder.deleteMany({ where: { user: { email: { endsWith: domain } } } });
+  await prisma.legacyMenuItem.deleteMany({ where: { name: { startsWith: "ord-" } } });
+  await prisma.legacyCategory.deleteMany({ where: { name: { startsWith: "ord-cat-" } } });
+  await prisma.legacyUser.deleteMany({ where: { email: { endsWith: domain } } });
   await prisma.$disconnect();
 });
 
@@ -118,7 +118,7 @@ describe("orders", () => {
   });
 
   it("keeps the price snapshot when the menu price changes later", async () => {
-    await prisma.menuItem.update({ where: { id: pizzaId }, data: { priceCents: 9999 } });
+    await prisma.legacyMenuItem.update({ where: { id: pizzaId }, data: { priceCents: 9999 } });
     const res = await request(app).get(`/api/orders/${orderId}`).set("Authorization", alice);
     expect(res.body.data.totalCents).toBe(2 * 1250 + 2 * 300);
     const pizzaLine = res.body.data.items.find((i: { menuItemId: number }) => i.menuItemId === pizzaId);

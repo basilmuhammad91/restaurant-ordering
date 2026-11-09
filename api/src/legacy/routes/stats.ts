@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma.js";
+import { prisma } from "../prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 
@@ -39,7 +39,7 @@ statsRouter.get("/", async (req, res) => {
     if (days.length > MAX_DAYS) throw new HttpError(422, `Range cannot exceed ${MAX_DAYS} days`);
   }
 
-  const orders = await prisma.order.findMany({
+  const orders = await prisma.legacyOrder.findMany({
     where: {
       createdAt: { gte: new Date(`${from}T00:00:00.000${OFFSET}`), lte: new Date(`${to}T23:59:59.999${OFFSET}`) },
     },

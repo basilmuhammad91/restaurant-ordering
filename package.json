@@ -1,0 +1,30 @@
+{
+  "name": "restoflux",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Restoflux: multi-tenant restaurant management platform",
+  "workspaces": [
+    "packages/*",
+    "api",
+    "admin"
+  ],
+  "scripts": {
+    "prepare": "npm run build -w @restoflux/contracts",
+    "build:contracts": "npm run build -w @restoflux/contracts",
+    "dev": "concurrently -n api,admin -c blue,magenta \"npm:dev:api\" \"npm:dev:admin\"",
+    "dev:api": "npm run dev -w api",
+    "dev:admin": "npm run dev -w admin",
+    "typecheck": "npm run build:contracts && npm run typecheck --workspaces --if-present",
+    "test": "npm run build:contracts && npm test --workspaces --if-present"
+  },
+  "allowScripts": {
+    "prisma@7.10.1": true,
+    "@prisma/engines@7.10.1": true,
+    "esbuild@0.28.2": true,
+    "msgpackr-extract": false,
+    "bcrypt": false
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

@@ -1,7 +1,7 @@
-import type { Prisma } from "../generated/prisma/client.js";
+import type { Prisma } from "../../generated/prisma/client.js";
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma.js";
+import { prisma } from "../prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 
@@ -27,7 +27,7 @@ const include = {
   },
 } as const;
 
-type DealWithItems = Prisma.DealGetPayload<{ include: typeof include }>;
+type DealWithItems = Prisma.LegacyDealGetPayload<{ include: typeof include }>;
 
 // `available` is derived: a deal can't be ordered while one of its parts is sold out.
 function serialize(deal: DealWithItems) {
@@ -65,7 +65,7 @@ const updateBody = base.partial().superRefine(checks);
 const toDate = (v: string | null | undefined) => (v === undefined ? undefined : v === null ? null : new Date(v));
 
 async function sumOfParts(lines: { menuItemId: number; quantity: number }[]) {
-  const menuItems = await prisma.menuItem.findMany({ where: { id: { in: lines.map((l) => l.menuItemId) } } });
+  const menuItems = await prisma.legacyMenuItem.findMany({ where: { id: { in: lines.map((l) => l.menuItemId) } } });
   if (menuItems.length !== lines.length) throw new HttpError(422, "One or more menu items do not exist");
   const price = new Map(menuItems.map((m) => [m.id, m.priceCents]));
   return lines.reduce((sum, l) => sum + l.quantity * price.get(l.menuItemId)!, 0);
@@ -73,7 +73,7 @@ async function sumOfParts(lines: { menuItemId: number; quantity: number }[]) {
 
 // ---- public: customers see only deals that are on and inside their schedule ----
 dealsRouter.get("/", async (_req, res) => {
-  const deals = await prisma.deal.findMany({ where: activeDealWhere(), include, orderBy: { id: "asc" } });
+  const deals = await prisma.legacyDeal.findMany({ where: activeDealWhere(), include, orderBy: { id: "asc" } });
   res.json({ data: deals.map(serialize) });
 });
 
@@ -82,7 +82,7 @@ const admin = [requireAuth, requireRole("ADMIN")];
 
 // Every deal, including switched-off and expired ones (declared before any /:id route).
 dealsRouter.get("/manage", ...admin, async (_req, res) => {
-  const deals = await prisma.deal.findMany({ include, orderBy: { id: "desc" } });
+  const deals = await prisma.legacyDeal.findMany({ include, orderBy: { id: "desc" } });
   res.json({ data: deals.map(serialize) });
 });
 
@@ -92,7 +92,7 @@ dealsRouter.post("/", ...admin, async (req, res) => {
   const original = b.originalPriceCents ?? parts;
   if (b.dealPriceCents > original) throw new HttpError(422, "Deal price cannot exceed the original price");
 
-  const deal = await prisma.deal.create({
+  const deal = await prisma.legacyDeal.create({
     data: {
       name: b.name,
       description: b.description ?? null,
@@ -112,7 +112,7 @@ dealsRouter.post("/", ...admin, async (req, res) => {
 dealsRouter.patch("/:id", ...admin, async (req, res) => {
   const { id } = idParam.parse(req.params);
   const b = updateBody.parse(req.body);
-  const existing = await prisma.deal.findUnique({ where: { id } });
+  const existing = await prisma.legacyDeal.findUnique({ where: { id } });
   if (!existing) throw new HttpError(404, "Not found");
 
   // Replacing the items recalculates the original price unless the admin supplied one.
@@ -123,10 +123,10 @@ dealsRouter.patch("/:id", ...admin, async (req, res) => {
 
   const deal = await prisma.$transaction(async (tx) => {
     if (b.items) {
-      await tx.dealItem.deleteMany({ where: { dealId: id } });
-      await tx.dealItem.createMany({ data: b.items.map((i) => ({ ...i, dealId: id })) });
+      await tx.legacyDealItem.deleteMany({ where: { dealId: id } });
+      await tx.legacyDealItem.createMany({ data: b.items.map((i) => ({ ...i, dealId: id })) });
     }
-    return tx.deal.update({
+    return tx.legacyDeal.update({
       where: { id },
       data: {
         name: b.name,
@@ -147,6 +147,6 @@ dealsRouter.patch("/:id", ...admin, async (req, res) => {
 // Deals that were ever ordered can't be deleted (409): switch them off instead.
 dealsRouter.delete("/:id", ...admin, async (req, res) => {
   const { id } = idParam.parse(req.params);
-  await prisma.deal.delete({ where: { id } });
+  await prisma.legacyDeal.delete({ where: { id } });
   res.status(204).end();
 });

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { prisma } from "../lib/prisma.js";
+import { prisma } from "../prisma.js";
 
 // A Router is like a Laravel route file / route group.
 export const healthRouter = Router();

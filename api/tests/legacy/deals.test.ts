@@ -1,9 +1,9 @@
 import bcrypt from "bcrypt";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createApp } from "../src/app.js";
-import { signToken } from "../src/lib/jwt.js";
-import { prisma } from "../src/lib/prisma.js";
+import { createApp } from "../../src/app.js";
+import { signToken } from "../../src/legacy/jwt.js";
+import { prisma } from "../../src/legacy/prisma.js";
 
 const app = createApp();
 const stamp = Date.now();
@@ -20,25 +20,25 @@ const create = (body: object, token = admin) => request(app).post("/api/deals").
 beforeAll(async () => {
   const passwordHash = await bcrypt.hash("irrelevant-password", 4);
   const mk = (n: string, role: "ADMIN" | "CUSTOMER") =>
-    prisma.user.create({ data: { email: `${n}-${stamp}${domain}`, name: n, passwordHash, role } });
+    prisma.legacyUser.create({ data: { email: `${n}-${stamp}${domain}`, name: n, passwordHash, role } });
   const [a, c] = await Promise.all([mk("admin", "ADMIN"), mk("cust", "CUSTOMER")]);
   admin = `Bearer ${signToken(a)}`;
   customer = `Bearer ${signToken(c)}`;
 
-  const cat = await prisma.category.create({ data: { name: `deal-cat-${stamp}` } });
+  const cat = await prisma.legacyCategory.create({ data: { name: `deal-cat-${stamp}` } });
   const item = (name: string, priceCents: number, available = true) =>
-    prisma.menuItem.create({ data: { name: `deal-${name}-${stamp}`, priceCents, available, categoryId: cat.id } });
+    prisma.legacyMenuItem.create({ data: { name: `deal-${name}-${stamp}`, priceCents, available, categoryId: cat.id } });
   aId = (await item("a", 1000)).id;
   bId = (await item("b", 500)).id;
   soldOutId = (await item("sold-out", 800, false)).id;
 });
 
 afterAll(async () => {
-  await prisma.order.deleteMany({ where: { user: { email: { endsWith: domain } } } });
-  await prisma.deal.deleteMany({ where: { name: { startsWith: "deal-test-" } } });
-  await prisma.menuItem.deleteMany({ where: { name: { startsWith: "deal-" } } });
-  await prisma.category.deleteMany({ where: { name: { startsWith: "deal-cat-" } } });
-  await prisma.user.deleteMany({ where: { email: { endsWith: domain } } });
+  await prisma.legacyOrder.deleteMany({ where: { user: { email: { endsWith: domain } } } });
+  await prisma.legacyDeal.deleteMany({ where: { name: { startsWith: "deal-test-" } } });
+  await prisma.legacyMenuItem.deleteMany({ where: { name: { startsWith: "deal-" } } });
+  await prisma.legacyCategory.deleteMany({ where: { name: { startsWith: "deal-cat-" } } });
+  await prisma.legacyUser.deleteMany({ where: { email: { endsWith: domain } } });
   await prisma.$disconnect();
 });
 

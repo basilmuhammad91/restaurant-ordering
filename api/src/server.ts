@@ -1,6 +1,6 @@
 import { createApp } from "./app.js";
-import { env } from "./config/env.js";
-import { prisma } from "./lib/prisma.js";
+import { env } from "./core/config/env.js";
+import { unscopedDb } from "./core/db/client.js";
 
 const server = createApp().listen(env.PORT, () => {
   console.log(`API listening on http://localhost:${env.PORT}`);
@@ -8,7 +8,7 @@ const server = createApp().listen(env.PORT, () => {
 
 async function shutdown() {
   server.close();
-  await prisma.$disconnect();
+  await unscopedDb.$disconnect();
   process.exit(0);
 }
 process.on("SIGINT", shutdown);

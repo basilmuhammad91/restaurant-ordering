@@ -1,9 +1,9 @@
 import bcrypt from "bcrypt";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createApp } from "../src/app.js";
-import { signToken } from "../src/lib/jwt.js";
-import { prisma } from "../src/lib/prisma.js";
+import { createApp } from "../../src/app.js";
+import { signToken } from "../../src/legacy/jwt.js";
+import { prisma } from "../../src/legacy/prisma.js";
 
 const app = createApp();
 const stamp = Date.now();
@@ -13,10 +13,10 @@ let customerAuth = "";
 // Users are inserted directly (like a Laravel factory) so we can have an ADMIN.
 beforeAll(async () => {
   const passwordHash = await bcrypt.hash("irrelevant-password", 4);
-  const admin = await prisma.user.create({
+  const admin = await prisma.legacyUser.create({
     data: { email: `menu-admin-${stamp}@menu.example.test`, name: "Admin", passwordHash, role: "ADMIN" },
   });
-  const customer = await prisma.user.create({
+  const customer = await prisma.legacyUser.create({
     data: { email: `menu-cust-${stamp}@menu.example.test`, name: "Cust", passwordHash },
   });
   adminAuth = `Bearer ${signToken(admin)}`;
@@ -24,9 +24,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.menuItem.deleteMany({ where: { name: { startsWith: "test-pizza-" } } });
-  await prisma.category.deleteMany({ where: { name: { startsWith: "test-cat-" } } });
-  await prisma.user.deleteMany({ where: { email: { endsWith: "@menu.example.test" } } });
+  await prisma.legacyMenuItem.deleteMany({ where: { name: { startsWith: "test-pizza-" } } });
+  await prisma.legacyCategory.deleteMany({ where: { name: { startsWith: "test-cat-" } } });
+  await prisma.legacyUser.deleteMany({ where: { email: { endsWith: "@menu.example.test" } } });
   await prisma.$disconnect();
 });
 

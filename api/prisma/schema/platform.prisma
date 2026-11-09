@@ -1,0 +1,57 @@
+// The Restoflux team's own accounts. They belong to NO tenant: a separate table, separate sessions and
+// a separate token audience, so a restaurant login can never reach the platform console and the
+// tenant isolation rules stay untouched. (Laravel: a second auth guard with its own provider.)
+
+model PlatformUser {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  email        String     @unique
+  name         String
+  passwordHash String
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?  @db.Timestamptz(3)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+
+  sessions PlatformSession[]
+
+  @@map("platform_users")
+}
+
+model PlatformSession {
+  id                   String    @id @default(uuid(7)) @db.Uuid
+  platformUserId       String    @db.Uuid
+  refreshTokenHash     String    @unique
+  prevRefreshTokenHash String?
+  userAgent            String?
+  ip                   String?
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt           DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt            DateTime  @db.Timestamptz(3)
+  revokedAt            DateTime? @db.Timestamptz(3)
+
+  platformUser PlatformUser @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId])
+  @@map("platform_sessions")
+}
+
+/// Everything the platform team does to organizations. Append-only (database trigger), like the tenant audit log.
+model PlatformAuditLog {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  platformUserId String?  @db.Uuid
+  /// The organization acted on. A plain id, not a foreign key, so the history outlives a deleted tenant.
+  tenantId       String?  @db.Uuid
+  action         String
+  entityType     String
+  entityId       String
+  before         Json?
+  after          Json?
+  reason         String?
+  requestId      String?
+  ip             String?
+  occurredAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([tenantId, occurredAt(sort: Desc)])
+  @@map("platform_audit_logs")
+}

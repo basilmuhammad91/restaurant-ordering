@@ -1,8 +1,8 @@
 import bcrypt from "bcrypt";
 import { Router } from "express";
 import { z } from "zod";
-import { signToken } from "../lib/jwt.js";
-import { prisma } from "../lib/prisma.js";
+import { signToken } from "../jwt.js";
+import { prisma } from "../prisma.js";
 import { requireAuth } from "../middleware/auth.js";
 import { HttpError } from "../middleware/error.js";
 
@@ -31,7 +31,7 @@ authRouter.post("/register", async (req, res) => {
 
   try {
     // role is never taken from the request body: no mass-assignment hole.
-    const user = await prisma.user.create({
+    const user = await prisma.legacyUser.create({
       data: { name, email, passwordHash },
       select: publicUser,
     });
@@ -46,7 +46,7 @@ authRouter.post("/register", async (req, res) => {
 
 authRouter.post("/login", async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.legacyUser.findUnique({ where: { email } });
 
   const ok = await bcrypt.compare(password, user?.passwordHash ?? dummyHash);
   if (!user || !ok) throw new HttpError(401, "Invalid credentials");
@@ -58,7 +58,7 @@ authRouter.post("/login", async (req, res) => {
 });
 
 authRouter.get("/me", requireAuth, async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: publicUser });
+  const user = await prisma.legacyUser.findUnique({ where: { id: req.user!.id }, select: publicUser });
   if (!user) throw new HttpError(401, "User no longer exists");
   res.json({ user });
 });

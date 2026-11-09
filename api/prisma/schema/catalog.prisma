@@ -1,0 +1,351 @@
+// CATALOG: categories, products with variants, modifiers, combos, time-based menus, prices and
+// per-branch availability (the "86" board). Everything belongs to a brand (a menu is per brand),
+// and prices live in a price book (per currency) with optional branch and channel overrides.
+// Money is always an integer in minor units. (Laravel: a catalog module with its own migrations.)
+
+enum PriceChannel {
+  POS
+  WEB
+  ANDROID
+  IOS
+  PHONE
+  AGGREGATOR
+}
+
+model Category {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  tenantId  String    @db.Uuid
+  brandId   String    @db.Uuid
+  name      String
+  imageUrl  String?
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  brand    Brand     @relation(fields: [tenantId, brandId], references: [tenantId, id])
+  products Product[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, brandId])
+  @@map("categories")
+}
+
+model Product {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  tenantId      String    @db.Uuid
+  brandId       String    @db.Uuid
+  categoryId    String    @db.Uuid
+  name          String
+  description   String?
+  imageUrl      String?
+  sku           String?
+  taxCategoryId String?   @db.Uuid
+  /// Routes the line to a kitchen station by KitchenStation.key (GRILL, FRY, BAR ...).
+  stationKey    String?
+  /// Dietary and display indicators: VEGETARIAN, VEGAN, HALAL, SPICY, GLUTEN_FREE, NEW, BESTSELLER ...
+  tags          String[]  @default([])
+  /// Allergens to declare: GLUTEN, DAIRY, NUTS, EGG, SOY, SEAFOOD, SESAME ...
+  allergens     String[]  @default([])
+  isActive      Boolean   @default(true)
+  sortOrder     Int       @default(0)
+  deletedAt     DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id])
+  brand        Brand                  @relation(fields: [tenantId, brandId], references: [tenantId, id])
+  category     Category               @relation(fields: [tenantId, categoryId], references: [tenantId, id])
+  taxCategory  TaxCategory?           @relation(fields: [tenantId, taxCategoryId], references: [tenantId, id])
+  variants     ProductVariant[]
+  modifiers    ProductModifierGroup[]
+  menus        MenuProduct[]
+  availability LocationAvailability[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, brandId, categoryId])
+  @@map("products")
+}
+
+/// Every product has at least one variant (a plain item has a single "Regular"). Variants carry prices.
+model ProductVariant {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  tenantId  String    @db.Uuid
+  productId String    @db.Uuid
+  name      String
+  sku       String?
+  isDefault Boolean   @default(false)
+  sortOrder Int       @default(0)
+  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
+  product      Product           @relation(fields: [tenantId, productId], references: [tenantId, id])
+  prices       Price[]
+  comboOptions ComboSlotOption[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, productId])
+  @@map("product_variants")
+}
+
+model ModifierGroup {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  tenantId  String    @db.Uuid
+  brandId   String    @db.Uuid
+  name      String
+  /// Required when minSelect > 0.
+  minSelect Int       @default(0)
+  maxSelect Int       @default(1)
+  isActive  Boolean   @default(true)
+  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant                 @relation(fields: [tenantId], references: [id])
+  brand    Brand                  @relation(fields: [tenantId, brandId], references: [tenantId, id])
+  options  ModifierOption[]
+  products ProductModifierGroup[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, brandId])
+  @@map("modifier_groups")
+}
+
+model ModifierOption {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  tenantId  String    @db.Uuid
+  groupId   String    @db.Uuid
+  name      String
+  isDefault Boolean   @default(false)
+  sortOrder Int       @default(0)
+  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id])
+  group        ModifierGroup          @relation(fields: [tenantId, groupId], references: [tenantId, id])
+  prices       Price[]
+  availability LocationAvailability[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, groupId])
+  @@map("modifier_options")
+}
+
+model ProductModifierGroup {
+  tenantId          String @db.Uuid
+  productId         String @db.Uuid
+  modifierGroupId   String @db.Uuid
+  sortOrder         Int    @default(0)
+  minSelectOverride Int?
+  maxSelectOverride Int?
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  product       Product       @relation(fields: [tenantId, productId], references: [tenantId, id])
+  modifierGroup ModifierGroup @relation(fields: [tenantId, modifierGroupId], references: [tenantId, id])
+
+  @@id([productId, modifierGroupId])
+  @@index([tenantId, modifierGroupId])
+  @@map("product_modifier_groups")
+}
+
+/// A time-bound menu (Breakfast, Lunch, Dinner). A brand with no menu sells everything that is active.
+model Menu {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  tenantId  String    @db.Uuid
+  brandId   String    @db.Uuid
+  name      String
+  isDefault Boolean   @default(false)
+  isActive  Boolean   @default(true)
+  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  brand     Brand          @relation(fields: [tenantId, brandId], references: [tenantId, id])
+  schedules MenuSchedule[]
+  products  MenuProduct[]
+  combos    MenuCombo[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, brandId])
+  @@map("menus")
+}
+
+/// When a menu is served, evaluated in the branch's timezone. weekdays: 0 = Sunday .. 6 = Saturday.
+/// startsAt/endsAt are "HH:MM"; both null = all day; endsAt earlier than startsAt wraps past midnight.
+model MenuSchedule {
+  id       String  @id @default(uuid(7)) @db.Uuid
+  tenantId String  @db.Uuid
+  menuId   String  @db.Uuid
+  weekdays Int[]
+  startsAt String?
+  endsAt   String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  menu   Menu   @relation(fields: [tenantId, menuId], references: [tenantId, id], onDelete: Cascade)
+
+  @@index([tenantId, menuId])
+  @@map("menu_schedules")
+}
+
+model MenuProduct {
+  tenantId  String @db.Uuid
+  menuId    String @db.Uuid
+  productId String @db.Uuid
+  sortOrder Int    @default(0)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  menu    Menu    @relation(fields: [tenantId, menuId], references: [tenantId, id], onDelete: Cascade)
+  product Product @relation(fields: [tenantId, productId], references: [tenantId, id])
+
+  @@id([menuId, productId])
+  @@index([tenantId, productId])
+  @@map("menu_products")
+}
+
+model MenuCombo {
+  tenantId  String @db.Uuid
+  menuId    String @db.Uuid
+  comboId   String @db.Uuid
+  sortOrder Int    @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  menu   Menu   @relation(fields: [tenantId, menuId], references: [tenantId, id], onDelete: Cascade)
+  combo  Combo  @relation(fields: [tenantId, comboId], references: [tenantId, id])
+
+  @@id([menuId, comboId])
+  @@index([tenantId, comboId])
+  @@map("menu_combos")
+}
+
+/// A bundle: a fixed combo has slots with a single option; a choice combo ("any burger + any drink") has several.
+model Combo {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  tenantId      String    @db.Uuid
+  brandId       String    @db.Uuid
+  name          String
+  description   String?
+  imageUrl      String?
+  taxCategoryId String?   @db.Uuid
+  isActive      Boolean   @default(true)
+  startsAt      DateTime? @db.Timestamptz(3)
+  endsAt        DateTime? @db.Timestamptz(3)
+  deletedAt     DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id])
+  brand        Brand                  @relation(fields: [tenantId, brandId], references: [tenantId, id])
+  taxCategory  TaxCategory?           @relation(fields: [tenantId, taxCategoryId], references: [tenantId, id])
+  slots        ComboSlot[]
+  menus        MenuCombo[]
+  prices       Price[]
+  availability LocationAvailability[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, brandId])
+  @@map("combos")
+}
+
+model ComboSlot {
+  id        String @id @default(uuid(7)) @db.Uuid
+  tenantId  String @db.Uuid
+  comboId   String @db.Uuid
+  name      String
+  quantity  Int    @default(1)
+  sortOrder Int    @default(0)
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id])
+  combo   Combo             @relation(fields: [tenantId, comboId], references: [tenantId, id], onDelete: Cascade)
+  options ComboSlotOption[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, comboId])
+  @@map("combo_slots")
+}
+
+model ComboSlotOption {
+  id        String  @id @default(uuid(7)) @db.Uuid
+  tenantId  String  @db.Uuid
+  slotId    String  @db.Uuid
+  variantId String  @db.Uuid
+  isDefault Boolean @default(false)
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id])
+  slot    ComboSlot      @relation(fields: [tenantId, slotId], references: [tenantId, id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [tenantId, variantId], references: [tenantId, id])
+  prices  Price[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, slotId])
+  @@index([tenantId, variantId])
+  @@map("combo_slot_options")
+}
+
+/// One price for exactly one target (variant, modifier option, combo or combo slot option) in exactly
+/// one scope (a price book, or a single branch), optionally for one sales channel.
+/// Resolution for (target, branch, channel): branch+channel, branch, book+channel, book.
+/// The one-target and one-scope rules, and uniqueness per target+scope+channel, are enforced by
+/// hand-written CHECKs and partial unique indexes in the migration.
+model Price {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  tenantId          String        @db.Uuid
+  variantId         String?       @db.Uuid
+  modifierOptionId  String?       @db.Uuid
+  comboId           String?       @db.Uuid
+  comboSlotOptionId String?       @db.Uuid
+  priceBookId       String?       @db.Uuid
+  locationId        String?       @db.Uuid
+  channel           PriceChannel?
+  amountMinor       Int
+  /// The struck-through "was" price shown next to a deal.
+  compareAtMinor    Int?
+  currencyCode      String        @db.Char(3)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  variant         ProductVariant?  @relation(fields: [tenantId, variantId], references: [tenantId, id])
+  modifierOption  ModifierOption?  @relation(fields: [tenantId, modifierOptionId], references: [tenantId, id])
+  combo           Combo?           @relation(fields: [tenantId, comboId], references: [tenantId, id])
+  comboSlotOption ComboSlotOption? @relation(fields: [tenantId, comboSlotOptionId], references: [tenantId, id])
+  priceBook       PriceBook?       @relation(fields: [tenantId, priceBookId], references: [tenantId, id])
+  location        Location?        @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  currency        Currency         @relation(fields: [currencyCode], references: [code])
+
+  @@index([tenantId, variantId])
+  @@index([tenantId, priceBookId])
+  @@index([tenantId, locationId])
+  @@map("prices")
+}
+
+/// Per-branch availability. isListed = the branch sells it at all; isAvailable = false is the "86" flag
+/// (sold out now); soldOutUntil lets a sold-out flag lapse on its own (e.g. at the next opening).
+/// No row means listed and available. Exactly one target (CHECK in the migration).
+model LocationAvailability {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  tenantId         String    @db.Uuid
+  locationId       String    @db.Uuid
+  productId        String?   @db.Uuid
+  comboId          String?   @db.Uuid
+  modifierOptionId String?   @db.Uuid
+  isListed         Boolean   @default(true)
+  isAvailable      Boolean   @default(true)
+  soldOutUntil     DateTime? @db.Timestamptz(3)
+  updatedById      String?   @db.Uuid
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  location       Location        @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  product        Product?        @relation(fields: [tenantId, productId], references: [tenantId, id])
+  combo          Combo?          @relation(fields: [tenantId, comboId], references: [tenantId, id])
+  modifierOption ModifierOption? @relation(fields: [tenantId, modifierOptionId], references: [tenantId, id])
+
+  @@index([tenantId, locationId])
+  @@map("location_availability")
+}

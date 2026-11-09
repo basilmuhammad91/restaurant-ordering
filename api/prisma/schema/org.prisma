@@ -1,0 +1,393 @@
+// ORGANIZATION: tenant, brands, locations (branches / warehouses / central kitchens), taxes,
+// payment methods. See docs/DATA_MODEL.md section 3.1-3.2.
+//
+// Reading guide: every business table has `tenantId`. Required relations to a parent in the same
+// tenant use COMPOSITE foreign keys (tenantId, parentId) -> (tenantId, id), so the database itself
+// refuses a child that points at another tenant's parent. Optional relations use a plain FK and are
+// checked in the service layer (a composite FK cannot be partially NULL in Prisma).
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+}
+
+enum LocationType {
+  BRANCH
+  WAREHOUSE
+  CENTRAL_KITCHEN
+}
+
+enum PaymentMethodType {
+  CASH
+  CARD
+  WALLET
+  QR
+  BANK_TRANSFER
+  OTHER
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum ReasonType {
+  VOID
+  REFUND
+  DISCOUNT
+  ADJUSTMENT
+  CASH_OUT
+}
+
+/// Reference data shared by all tenants (read-only, seeded).
+model Currency {
+  prices            Price[]
+  code              String  @id @db.Char(3)
+  name              String
+  symbol            String
+  minorUnitExponent Int // PKR/AED/USD = 2, KWD = 3, JPY = 0
+
+  tenants    Tenant[]
+  locations  Location[]
+  priceBooks PriceBook[]
+
+  @@map("currencies")
+}
+
+model Tenant {
+  categories            Category[]
+  products              Product[]
+  productVariants       ProductVariant[]
+  modifierGroups        ModifierGroup[]
+  modifierOptions       ModifierOption[]
+  productModifierGroups ProductModifierGroup[]
+  menus                 Menu[]
+  menuSchedules         MenuSchedule[]
+  menuProducts          MenuProduct[]
+  menuCombos            MenuCombo[]
+  combos                Combo[]
+  comboSlots            ComboSlot[]
+  comboSlotOptions      ComboSlotOption[]
+  prices                Price[]
+  locationAvailability  LocationAvailability[]
+  id                    String                 @id @default(uuid(7)) @db.Uuid
+  name                  String
+  slug                  String                 @unique
+  status                TenantStatus           @default(ACTIVE)
+  baseCurrency          String                 @db.Char(3)
+  defaultLocale         String                 @default("en")
+  /// Bumped on any role / permission / access change: invalidates cached principals so the change
+  /// applies on the very next request (see docs/ARCHITECTURE.md section 6).
+  authVersion           Int                    @default(0)
+  /// Typed in packages/contracts (tenantSettingsSchema): variance thresholds, negative stock, ...
+  settings              Json                   @default("{}")
+  /// Commercial plan label and limits, managed by the platform team (null limit = unlimited).
+  plan                  String                 @default("standard")
+  trialEndsAt           DateTime?              @db.Timestamptz(3)
+  maxLocations          Int?
+  maxUsers              Int?
+  suspendedReason       String?
+  /// Brand colours for this organization's admin UI (validated by themeSchema in packages/contracts).
+  theme                 Json                   @default("{}")
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
+
+  currency Currency @relation(fields: [baseCurrency], references: [code])
+
+  brands                  Brand[]
+  locations               Location[]
+  openingHours            LocationOpeningHour[]
+  diningTables            DiningTable[]
+  kitchenStations         KitchenStation[]
+  taxCategories           TaxCategory[]
+  taxProfiles             TaxProfile[]
+  taxRules                TaxRule[]
+  paymentMethods          PaymentMethod[]
+  locationPaymentMethods  LocationPaymentMethod[]
+  priceBooks              PriceBook[]
+  reasonCodes             ReasonCode[]
+  users                   User[]
+  roles                   Role[]
+  rolePermissions         RolePermission[]
+  roleLimits              RoleLimit[]
+  userRoles               UserRole[]
+  userLocations           UserLocation[]
+  sessions                Session[]
+  loginEvents             LoginEvent[]
+  approvalRequests        ApprovalRequest[]
+  auditLogs               AuditLog[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+
+  @@map("tenants")
+}
+
+model Brand {
+  categories     Category[]
+  products       Product[]
+  modifierGroups ModifierGroup[]
+  menus          Menu[]
+  combos         Combo[]
+  id             String          @id @default(uuid(7)) @db.Uuid
+  tenantId       String          @db.Uuid
+  name           String
+  /// Globally unique: the storefront resolves brand -> tenant from the slug alone.
+  slug           String          @unique
+  logoUrl        String?
+  primaryColor   String?
+  cuisine        String?
+  isActive       Boolean         @default(true)
+  deletedAt      DateTime?       @db.Timestamptz(3)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  locations  Location[]
+  priceBooks PriceBook[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId])
+  @@map("brands")
+}
+
+/// A place that sells or holds stock. Branch = type BRANCH; warehouses and central kitchens only hold stock.
+model Location {
+  prices               Price[]
+  availability         LocationAvailability[]
+  id                   String                 @id @default(uuid(7)) @db.Uuid
+  tenantId             String                 @db.Uuid
+  type                 LocationType
+  brandId              String?                @db.Uuid
+  code                 String
+  name                 String
+  countryCode          String                 @db.Char(2)
+  city                 String?
+  address              String?
+  phone                String?
+  latitude             Decimal?               @db.Decimal(9, 6)
+  longitude            Decimal?               @db.Decimal(9, 6)
+  timezone             String // IANA, e.g. Asia/Karachi
+  currencyCode         String                 @db.Char(3)
+  taxProfileId         String?                @db.Uuid
+  priceBookId          String?                @db.Uuid
+  /// "HH:MM" local time when a new trading day starts (a bar open until 2 am trades on yesterday's date).
+  businessDayStartTime String                 @default("05:00")
+  receiptHeader        String?
+  receiptFooter        String?
+  orderPrefix          String?
+  acceptsOnlineOrders  Boolean                @default(false)
+  isActive             Boolean                @default(true)
+  deletedAt            DateTime?              @db.Timestamptz(3)
+  createdAt            DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime               @updatedAt @db.Timestamptz(3)
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  brand      Brand?      @relation(fields: [brandId], references: [id])
+  currency   Currency    @relation(fields: [currencyCode], references: [code])
+  taxProfile TaxProfile? @relation(fields: [taxProfileId], references: [id])
+  priceBook  PriceBook?  @relation(fields: [priceBookId], references: [id])
+
+  openingHours    LocationOpeningHour[]
+  diningTables    DiningTable[]
+  kitchenStations KitchenStation[]
+  paymentMethods  LocationPaymentMethod[]
+  userLocations   UserLocation[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, brandId])
+  @@index([tenantId, type])
+  @@map("locations")
+}
+
+model LocationOpeningHour {
+  id         String @id @default(uuid(7)) @db.Uuid
+  tenantId   String @db.Uuid
+  locationId String @db.Uuid
+  weekday    Int // 0 = Sunday
+  opensAt    String // "HH:MM"
+  closesAt   String // earlier than opensAt = closes after midnight
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([locationId, weekday, opensAt])
+  @@map("location_opening_hours")
+}
+
+model DiningTable {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  tenantId   String    @db.Uuid
+  locationId String    @db.Uuid
+  name       String
+  seats      Int       @default(4)
+  section    String?
+  isActive   Boolean   @default(true)
+  deletedAt  DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@index([tenantId, locationId])
+  @@map("dining_tables")
+}
+
+model KitchenStation {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  tenantId   String   @db.Uuid
+  locationId String   @db.Uuid
+  /// Products route to a station by this key (GRILL, FRY, BAR ...).
+  key        String
+  name       String
+  sortOrder  Int      @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id])
+
+  @@unique([locationId, key])
+  @@index([tenantId, locationId])
+  @@map("kitchen_stations")
+}
+
+model TaxCategory {
+  products  Product[]
+  combos    Combo[]
+  id        String    @id @default(uuid(7)) @db.Uuid
+  tenantId  String    @db.Uuid
+  name      String
+  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id])
+  rules  TaxRule[]
+
+  @@unique([tenantId, id])
+  @@map("tax_categories")
+}
+
+model TaxProfile {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  tenantId         String    @db.Uuid
+  name             String
+  countryCode      String    @db.Char(2)
+  /// true = shelf prices already include tax (UAE VAT style); false = tax is added on top (US sales tax style).
+  pricesIncludeTax Boolean
+  deletedAt        DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  rules     TaxRule[]
+  locations Location[]
+
+  @@unique([tenantId, id])
+  @@map("tax_profiles")
+}
+
+/// One tax in a profile (SRB 13%, UAE VAT 5%, Texas 8.25% ...). Rates are data, never code.
+model TaxRule {
+  id            String      @id @default(uuid(7)) @db.Uuid
+  tenantId      String      @db.Uuid
+  taxProfileId  String      @db.Uuid
+  taxCategoryId String?     @db.Uuid
+  name          String
+  authorityCode String
+  ratePercent   Decimal     @db.Decimal(7, 4)
+  isCompound    Boolean     @default(false)
+  /// Empty = applies to every order type.
+  orderTypes    OrderType[]
+  sortOrder     Int         @default(0)
+  validFrom     DateTime?   @db.Timestamptz(3)
+  validTo       DateTime?   @db.Timestamptz(3)
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  taxProfile  TaxProfile   @relation(fields: [tenantId, taxProfileId], references: [tenantId, id], onDelete: Cascade)
+  taxCategory TaxCategory? @relation(fields: [taxCategoryId], references: [id])
+
+  @@index([tenantId, taxProfileId])
+  @@map("tax_rules")
+}
+
+model PaymentMethod {
+  id                String            @id @default(uuid(7)) @db.Uuid
+  tenantId          String            @db.Uuid
+  name              String
+  type              PaymentMethodType
+  providerCode      String?
+  requiresReference Boolean           @default(false)
+  opensDrawer       Boolean           @default(false)
+  isActive          Boolean           @default(true)
+  deletedAt         DateTime?         @db.Timestamptz(3)
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @db.Timestamptz(3)
+
+  tenant        Tenant                  @relation(fields: [tenantId], references: [id])
+  locationLinks LocationPaymentMethod[]
+
+  @@unique([tenantId, id])
+  @@map("payment_methods")
+}
+
+model LocationPaymentMethod {
+  id              String  @id @default(uuid(7)) @db.Uuid
+  tenantId        String  @db.Uuid
+  locationId      String  @db.Uuid
+  paymentMethodId String  @db.Uuid
+  isEnabled       Boolean @default(true)
+  sortOrder       Int     @default(0)
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  location      Location      @relation(fields: [tenantId, locationId], references: [tenantId, id], onDelete: Cascade)
+  paymentMethod PaymentMethod @relation(fields: [tenantId, paymentMethodId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([locationId, paymentMethodId])
+  @@map("location_payment_methods")
+}
+
+/// Minimal in Phase 1 (prices arrive with the catalog in Phase 2). A location uses one price book.
+model PriceBook {
+  prices       Price[]
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tenantId     String    @db.Uuid
+  brandId      String?   @db.Uuid
+  name         String
+  currencyCode String    @db.Char(3)
+  isDefault    Boolean   @default(false)
+  deletedAt    DateTime? @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  brand     Brand?     @relation(fields: [brandId], references: [id])
+  currency  Currency   @relation(fields: [currencyCode], references: [code])
+  locations Location[]
+
+  @@unique([tenantId, id])
+  @@map("price_books")
+}
+
+/// Tenant-editable reasons for voids, refunds, discounts, adjustments and cash-outs.
+model ReasonCode {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  tenantId     String     @db.Uuid
+  type         ReasonType
+  code         String
+  name         String
+  requiresNote Boolean    @default(false)
+  isSystem     Boolean    @default(false)
+  deletedAt    DateTime?  @db.Timestamptz(3)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, type])
+  @@map("reason_codes")
+}

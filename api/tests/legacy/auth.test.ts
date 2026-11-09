@@ -1,7 +1,7 @@
 import request from "supertest";
 import { afterAll, describe, expect, it } from "vitest";
-import { createApp } from "../src/app.js";
-import { prisma } from "../src/lib/prisma.js";
+import { createApp } from "../../src/app.js";
+import { prisma } from "../../src/legacy/prisma.js";
 
 // These hit the real Neon DB. Emails are unique per run and removed afterwards
 // (a dedicated test DB/branch is the better long-term setup).
@@ -10,7 +10,7 @@ const email = `test-${Date.now()}@auth.example.test`;
 const password = "correct-horse-battery";
 
 afterAll(async () => {
-  await prisma.user.deleteMany({ where: { email: { endsWith: "@auth.example.test" } } });
+  await prisma.legacyUser.deleteMany({ where: { email: { endsWith: "@auth.example.test" } } });
   await prisma.$disconnect();
 });
 

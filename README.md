@@ -26,6 +26,25 @@ Built as a portfolio project to learn the Node.js ecosystem (coming from Laravel
 - **Deals:** bundle menu items at a discount, optional schedule, on/off switch
 - Reports and Settings are placeholders for now
 
+## Multi-tenant admin app (SaaS rebuild, in progress)
+
+The project is being evolved into a multi-tenant restaurant management SaaS, one phase at a time (see [`docs/PROGRESS.md`](docs/PROGRESS.md)). **Phase 1** is done: tenants, brands and branches, users, tenant-defined roles with `module.action` permissions and approval limits, an append-only audit log, and a new admin app in [`admin/`](admin) (shadcn/ui, TanStack Query/Table). The API lives under `/api/v1`; the original storefront API is untouched.
+
+```bash
+npm install                                  # installs every workspace
+npm run bootstrap:default-tenant -w api      # one-off: creates the default tenant (idempotent)
+npm run seed:demo -w api                     # demo tenant, one user per role; prints random passwords once
+npm run dev                                  # API on :4000 and admin on :5174, together
+```
+
+**Restoflux team (super admin):** create an account once, then sign in at <http://localhost:5174/platform> to create, suspend and configure organizations:
+
+```bash
+npm run create-platform-admin -w api -- --email you@restoflux.com --name "Your Name"
+```
+
+**A restaurant organization:** sign in at <http://localhost:5174> with `owner@demo.restoflux.test` and the password the seed printed. Re-run `npm run seed:demo -w api -- --reset` to rebuild the demo tenant with fresh passwords. Architecture, data model and decisions are in [`docs/`](docs).
+
 ## Tech stack
 
 | Layer | Tools |
