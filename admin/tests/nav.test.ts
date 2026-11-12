@@ -10,9 +10,14 @@ const groups = (perms: Set<string>) => visibleNav(perms).map((g) => g.label);
 
 // The routes that exist in App.tsx today. Everything else in the nav must be marked `soon`.
 const BUILT = new Set([
-  "/", "/approvals", "/org/brands", "/org/locations", "/org/taxes", "/org/payment-methods", "/org/price-books", "/org/tables",
+  "/", "/approvals", "/orders/live", "/pos", "/kds", "/orders/history", "/shifts", "/org/brands", "/org/locations", "/org/taxes", "/org/payment-methods", "/org/price-books", "/org/tables",
   "/menu/products", "/menu/categories", "/menu/modifiers", "/menu/combos", "/menu/menus", "/menu/availability",
   "/settings/organization", "/settings/users", "/settings/roles", "/settings/audit",
+  "/purchasing/suppliers", "/purchasing/orders", "/purchasing/receiving", "/purchasing/invoices", "/purchasing/suggested",
+  "/reports/sales", "/reports/z", "/reports/food-cost", "/reports/inventory", "/reports/purchasing", "/reports/menu", "/reports/fraud",
+  "/customers", "/marketing/promotions", "/marketing/coupons", "/marketing/loyalty", "/marketing/feedback",
+  "/delivery", "/delivery/riders", "/delivery/zones", "/staff/employees", "/staff/roster", "/staff/timeclock", "/settings/receipts", "/settings/notifications",
+  "/inventory/stock", "/inventory/items", "/inventory/recipes", "/inventory/counts", "/inventory/adjustments", "/inventory/transfers", "/inventory/production",
 ]);
 
 describe("navigation config", () => {

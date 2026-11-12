@@ -10,7 +10,7 @@ export async function recordPlatformAudit(
   await unscopedDb.platformAuditLog.create({
     data: {
       platformUserId: req.platformUser?.id ?? null,
-      tenantId: entry.tenantId ?? null,
+      targetTenantId: entry.tenantId ?? null,
       action: entry.action,
       entityType: entry.entityType,
       entityId: entry.entityId,

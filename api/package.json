@@ -23,7 +23,9 @@
     "create-platform-admin": "tsx scripts/create-platform-admin.ts",
     "create-tenant": "tsx scripts/create-tenant.ts",
     "bootstrap:default-tenant": "tsx scripts/bootstrap-default-tenant.ts",
+    "seed:demo-orders": "tsx scripts/seed-demo-orders.ts",
     "seed:demo-menu": "tsx scripts/seed-demo-menu.ts",
+    "seed:demo-ops": "tsx scripts/seed-demo-ops.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "test:cleanup": "tsx scripts/purge-test-tenants.ts"
   },

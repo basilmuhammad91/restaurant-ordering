@@ -42,6 +42,18 @@ export const LOCATION_SCOPED: Readonly<Record<string, { field: string; nullable:
   CashShift: { field: "locationId", nullable: false },
   CashMovement: { field: "locationId", nullable: false },
   ZReport: { field: "locationId", nullable: false },
+  Feedback: { field: "locationId", nullable: false },
+  DeliveryZone: { field: "locationId", nullable: false },
+  DeliveryAssignment: { field: "locationId", nullable: false },
+  RosterShift: { field: "locationId", nullable: false },
+  TimeEntry: { field: "locationId", nullable: false },
+  Employee: { field: "locationId", nullable: true }, // staff with no home branch stay visible to everyone
+  PurchaseOrder: { field: "locationId", nullable: false },
+  GoodsReceipt: { field: "locationId", nullable: false },
+  StockLevel: { field: "locationId", nullable: false },
+  StockMovement: { field: "locationId", nullable: false },
+  StockCount: { field: "locationId", nullable: false },
+  ProductionRun: { field: "locationId", nullable: false },
   Price: { field: "locationId", nullable: true }, // company-wide (price book) prices stay visible; branch overrides are branch-scoped
 };
 

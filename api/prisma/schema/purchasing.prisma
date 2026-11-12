@@ -1,0 +1,220 @@
+// PURCHASING.
+// Suppliers, what they sell (in packs, at a price), purchase orders, the goods that actually arrive, and what
+// we owe. Receiving is the moment stock enters inventory: it posts PURCHASE rows to the stock ledger, at the
+// price on the order, so the average cost always follows real buying prices.
+// Money is integer minor units per PACK; inventory costs are per base unit (the pack price divided by the pack size).
+
+enum PurchaseOrderStatus {
+  DRAFT
+  APPROVED
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum SupplierInvoiceStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+model Supplier {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  tenantId         String    @db.Uuid
+  name             String
+  code             String?
+  contactName      String?
+  phone            String?
+  email            String?
+  address          String?
+  taxId            String?
+  /// Days after the invoice date by which we should pay.
+  paymentTermsDays Int       @default(0)
+  notes            String?
+  isActive         Boolean   @default(true)
+  deletedAt        DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  items          SupplierItem[]
+  purchaseOrders PurchaseOrder[]
+  receipts       GoodsReceipt[]
+  invoices       SupplierInvoice[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, name])
+  @@map("suppliers")
+}
+
+/// One thing a supplier sells, as they sell it: "Carton of 12 x 1 kg" at a price.
+model SupplierItem {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tenantId     String   @db.Uuid
+  supplierId   String   @db.Uuid
+  itemId       String   @db.Uuid
+  supplierSku  String?
+  packName     String   @default("Each")
+  /// How many of the item's base unit one pack holds (a 25 kg sack of flour = 25).
+  packQty      Decimal  @default(1) @db.Decimal(14, 3)
+  /// Price of one pack.
+  priceMinor   Int
+  isPreferred  Boolean  @default(false)
+  leadTimeDays Int      @default(1)
+  isActive     Boolean  @default(true)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  supplier Supplier      @relation(fields: [tenantId, supplierId], references: [tenantId, id])
+  item     InventoryItem @relation(fields: [tenantId, itemId], references: [tenantId, id])
+
+  @@unique([supplierId, itemId, packName])
+  @@index([tenantId, itemId])
+  @@map("supplier_items")
+}
+
+model PurchaseOrder {
+  id           String              @id @default(uuid(7)) @db.Uuid
+  tenantId     String              @db.Uuid
+  /// Where the goods are delivered (a branch, warehouse or central kitchen).
+  locationId   String              @db.Uuid
+  supplierId   String              @db.Uuid
+  number       String
+  status       PurchaseOrderStatus @default(DRAFT)
+  currencyCode String              @db.Char(3)
+  expectedDate DateTime?           @db.Date
+  note         String?
+  totalMinor   Int                 @default(0)
+  createdById  String?             @db.Uuid
+  approvedById String?             @db.Uuid
+  approvedAt   DateTime?           @db.Timestamptz(3)
+  sentAt       DateTime?           @db.Timestamptz(3)
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id])
+  location Location            @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  supplier Supplier            @relation(fields: [tenantId, supplierId], references: [tenantId, id])
+  lines    PurchaseOrderLine[]
+  receipts GoodsReceipt[]
+  invoices SupplierInvoice[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, number])
+  @@index([tenantId, locationId, status])
+  @@index([tenantId, supplierId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  tenantId       String  @db.Uuid
+  orderId        String  @db.Uuid
+  itemId         String  @db.Uuid
+  packName       String
+  packQty        Decimal @db.Decimal(14, 3)
+  /// How many packs were ordered and how many have arrived.
+  orderedPacks   Decimal @db.Decimal(14, 3)
+  receivedPacks  Decimal @default(0) @db.Decimal(14, 3)
+  unitPriceMinor Int
+  lineTotalMinor Int
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  order  PurchaseOrder @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [tenantId, itemId], references: [tenantId, id])
+
+  @@unique([orderId, itemId])
+  @@index([tenantId, orderId])
+  @@map("purchase_order_lines")
+}
+
+/// A delivery that arrived. Each line says what came in, in base units, and at what cost per unit.
+model GoodsReceipt {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tenantId     String   @db.Uuid
+  locationId   String   @db.Uuid
+  supplierId   String   @db.Uuid
+  orderId      String?  @db.Uuid
+  number       String
+  note         String?
+  receivedById String?  @db.Uuid
+  receivedAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id])
+  location Location           @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  supplier Supplier           @relation(fields: [tenantId, supplierId], references: [tenantId, id])
+  order    PurchaseOrder?     @relation(fields: [tenantId, orderId], references: [tenantId, id])
+  lines    GoodsReceiptLine[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, number])
+  @@index([tenantId, locationId, receivedAt])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  id         String  @id @default(uuid(7)) @db.Uuid
+  tenantId   String  @db.Uuid
+  receiptId  String  @db.Uuid
+  itemId     String  @db.Uuid
+  packs      Decimal @db.Decimal(14, 3)
+  /// Quantity in the item's base unit (packs x pack size).
+  qty        Decimal @db.Decimal(14, 3)
+  /// Cost of one base unit.
+  unitCost   Decimal @db.Decimal(18, 6)
+  totalMinor Int
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id])
+  receipt GoodsReceipt  @relation(fields: [tenantId, receiptId], references: [tenantId, id], onDelete: Cascade)
+  item    InventoryItem @relation(fields: [tenantId, itemId], references: [tenantId, id])
+
+  @@index([tenantId, receiptId])
+  @@map("goods_receipt_lines")
+}
+
+model SupplierInvoice {
+  id          String                @id @default(uuid(7)) @db.Uuid
+  tenantId    String                @db.Uuid
+  supplierId  String                @db.Uuid
+  orderId     String?               @db.Uuid
+  invoiceNo   String
+  invoiceDate DateTime              @db.Date
+  dueDate     DateTime              @db.Date
+  totalMinor  Int
+  paidMinor   Int                   @default(0)
+  status      SupplierInvoiceStatus @default(OPEN)
+  note        String?
+  createdById String?               @db.Uuid
+  createdAt   DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime              @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  supplier Supplier          @relation(fields: [tenantId, supplierId], references: [tenantId, id])
+  order    PurchaseOrder?    @relation(fields: [tenantId, orderId], references: [tenantId, id])
+  payments SupplierPayment[]
+
+  @@unique([tenantId, id])
+  @@unique([supplierId, invoiceNo])
+  @@index([tenantId, status, dueDate])
+  @@map("supplier_invoices")
+}
+
+/// Money paid against an invoice. Append-only: a wrong payment is reversed by voiding the invoice, not editing.
+model SupplierPayment {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tenantId    String   @db.Uuid
+  invoiceId   String   @db.Uuid
+  amountMinor Int
+  method      String
+  reference   String?
+  paidAt      DateTime @default(now()) @db.Timestamptz(3)
+  createdById String?  @db.Uuid
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id])
+  invoice SupplierInvoice @relation(fields: [tenantId, invoiceId], references: [tenantId, id])
+
+  @@index([tenantId, invoiceId])
+  @@map("supplier_payments")
+}

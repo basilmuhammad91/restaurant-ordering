@@ -167,7 +167,7 @@ organizations.get("/:id", "platform", async (req, res) => {
       select: { id: true, name: true, email: true, status: true, lastLoginAt: true },
       orderBy: { name: "asc" },
     }),
-    unscopedDb.platformAuditLog.findMany({ where: { tenantId: org.id }, orderBy: [{ occurredAt: "desc" }, { id: "desc" }], take: 10 }),
+    unscopedDb.platformAuditLog.findMany({ where: { targetTenantId: org.id }, orderBy: [{ occurredAt: "desc" }, { id: "desc" }], take: 10 }),
   ]);
   res.json({ data: { ...toRow(org, activity.get(org.id) ?? null), owners, recentActions: recent } });
 });
@@ -228,12 +228,12 @@ export const platformAudit = platformRouter("/api/v1/platform/audit-logs");
 
 platformAudit.get("/", "platform", async (req, res) => {
   const q = cursorQuerySchema.extend({ tenantId: idSchema.optional() }).parse(req.query);
-  const where: Prisma.PlatformAuditLogWhereInput = { ...(q.tenantId && { tenantId: q.tenantId }), ...afterCursor("occurredAt", q.cursor) };
+  const where: Prisma.PlatformAuditLogWhereInput = { ...(q.tenantId && { targetTenantId: q.tenantId }), ...afterCursor("occurredAt", q.cursor) };
   const rows = await unscopedDb.platformAuditLog.findMany({ where, orderBy: [{ occurredAt: "desc" }, { id: "desc" }], take: q.limit + 1 });
   const page = rows.slice(0, q.limit);
 
   const actorIds = [...new Set(page.map((r) => r.platformUserId).filter((x): x is string => !!x))];
-  const tenantIds = [...new Set(page.map((r) => r.tenantId).filter((x): x is string => !!x))];
+  const tenantIds = [...new Set(page.map((r) => r.targetTenantId).filter((x): x is string => !!x))];
   const [actors, tenants] = await Promise.all([
     unscopedDb.platformUser.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } }),
     unscopedDb.tenant.findMany({ where: { id: { in: tenantIds } }, select: { id: true, name: true } }),
@@ -242,7 +242,7 @@ platformAudit.get("/", "platform", async (req, res) => {
   const tenantName = new Map(tenants.map((t) => [t.id, t.name]));
   const last = page.at(-1);
   res.json({
-    data: page.map((r) => ({ ...r, actorName: r.platformUserId ? actorName.get(r.platformUserId) ?? null : null, organizationName: r.tenantId ? tenantName.get(r.tenantId) ?? null : null })),
+    data: page.map((r) => ({ ...r, tenantId: r.targetTenantId, actorName: r.platformUserId ? actorName.get(r.platformUserId) ?? null : null, organizationName: r.targetTenantId ? tenantName.get(r.targetTenantId) ?? null : null })),
     meta: { nextCursor: rows.length > q.limit && last ? encodeCursor(last.occurredAt, last.id) : null },
   });
 });

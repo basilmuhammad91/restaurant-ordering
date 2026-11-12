@@ -178,14 +178,15 @@ shifts.get("/", "shifts.view", async (req, res) => {
   const q = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25), locationId: idSchema.optional(), status: z.enum(["OPEN", "CLOSED"]).optional() }).parse(req.query);
   const where = { ...(q.locationId && { locationId: q.locationId }), ...(q.status && { status: q.status }) };
   const [rows, total] = await Promise.all([db.cashShift.findMany({ where, select: shiftSelect, orderBy: { openedAt: "desc" }, ...paging(q) }), db.cashShift.count({ where })]);
-  const [locations, users, zs] = await Promise.all([
+  const [locations, users, zs, registers] = await Promise.all([
     db.location.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.locationId))] } }, select: { id: true, name: true } }),
     db.user.findMany({ where: { id: { in: [...new Set(rows.flatMap((r) => [r.openedById, ...(r.closedById ? [r.closedById] : [])]))] } }, select: { id: true, name: true } }),
     db.zReport.findMany({ where: { cashShiftId: { in: rows.map((r) => r.id) } }, select: { id: true, cashShiftId: true } }),
+    db.cashRegister.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.registerId))] } }, select: { id: true, name: true } }),
   ]);
   res.json({
     data: rows.map((r) => ({
-      ...r, businessDate: r.businessDate.toISOString().slice(0, 10), locationName: locations.find((l) => l.id === r.locationId)?.name ?? null,
+      ...r, businessDate: r.businessDate.toISOString().slice(0, 10), locationName: locations.find((l) => l.id === r.locationId)?.name ?? null, registerName: registers.find((g) => g.id === r.registerId)?.name ?? null,
       openedByName: users.find((u) => u.id === r.openedById)?.name ?? null, closedByName: users.find((u) => u.id === r.closedById)?.name ?? null, zReportId: zs.find((z) => z.cashShiftId === r.id)?.id ?? null,
     })),
     meta: offsetMeta(q, total),

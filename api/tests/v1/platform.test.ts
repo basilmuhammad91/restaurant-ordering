@@ -116,7 +116,7 @@ describe("platform console", () => {
     expect(owner.body.data.me.tenant).toMatchObject({ status: "TRIAL", slug });
     expect(owner.body.data.me.roles.map((r: { name: string }) => r.name)).toContain("Owner");
 
-    const log = await unscopedDb.platformAuditLog.findMany({ where: { tenantId: res.body.data.id } });
+    const log = await unscopedDb.platformAuditLog.findMany({ where: { targetTenantId: res.body.data.id } });
     expect(log.map((l) => l.action)).toContain("organization.create");
     expect(JSON.stringify(log)).not.toContain(password);
   });
@@ -150,7 +150,7 @@ describe("platform console", () => {
     expect(back.body.data).toMatchObject({ status: "ACTIVE", suspendedReason: null });
     expect((await loginOwner(app, tenantA)).status).toBe(200);
 
-    const actions = (await unscopedDb.platformAuditLog.findMany({ where: { tenantId: tenantA.tenantId }, orderBy: { occurredAt: "asc" } })).map((l) => l.action);
+    const actions = (await unscopedDb.platformAuditLog.findMany({ where: { targetTenantId: tenantA.tenantId }, orderBy: { occurredAt: "asc" } })).map((l) => l.action);
     expect(actions).toEqual(expect.arrayContaining(["organization.suspended", "organization.active"]));
   });
 
@@ -202,7 +202,7 @@ describe("platform console", () => {
   });
 
   it("platform audit entries cannot be edited or deleted", async () => {
-    const row = await unscopedDb.platformAuditLog.findFirstOrThrow({ where: { tenantId: tenantA.tenantId } });
+    const row = await unscopedDb.platformAuditLog.findFirstOrThrow({ where: { targetTenantId: tenantA.tenantId } });
     await expect(unscopedDb.platformAuditLog.update({ where: { id: row.id }, data: { reason: "tampered" } })).rejects.toThrow();
     await expect(unscopedDb.platformAuditLog.delete({ where: { id: row.id } })).rejects.toThrow();
   });

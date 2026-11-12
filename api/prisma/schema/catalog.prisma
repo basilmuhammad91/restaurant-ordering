@@ -86,6 +86,7 @@ model ProductVariant {
   product      Product           @relation(fields: [tenantId, productId], references: [tenantId, id])
   prices       Price[]
   comboOptions ComboSlotOption[]
+  recipes      Recipe[] // at most one (unique on variantId); Prisma needs the list form for a composite key
 
   @@unique([tenantId, id])
   @@index([tenantId, productId])

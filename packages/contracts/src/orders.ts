@@ -217,3 +217,29 @@ export function businessDateOf(at: Date, timeZone: string, businessDayStart = "0
   if (minutes < startMinutes) local.setUTCDate(local.getUTCDate() - 1);
   return local.toISOString().slice(0, 10);
 }
+
+// ---------------------------------------------------------------- choosing tax rules
+export interface TaxRuleRow {
+  ruleId: string;
+  name: string;
+  authorityCode: string;
+  rateBp: number;
+  /** null = applies to every product */
+  taxCategoryId: string | null;
+  /** empty = applies to every order type */
+  orderTypes: readonly string[];
+  validFrom: string | null;
+  validTo: string | null;
+}
+
+/**
+ * Which of a branch's tax rules apply to one product, for one order type, at one moment. The server and the POS
+ * both call this, so the tax the screen shows is the tax the order gets.
+ */
+export function selectTaxRules(rules: readonly TaxRuleRow[], taxCategoryId: string | null, orderType: string, at: Date): TaxRuleInput[] {
+  return rules
+    .filter((r) => r.taxCategoryId === null || r.taxCategoryId === taxCategoryId)
+    .filter((r) => r.orderTypes.length === 0 || r.orderTypes.includes(orderType))
+    .filter((r) => (!r.validFrom || new Date(r.validFrom) <= at) && (!r.validTo || new Date(r.validTo) > at))
+    .map((r) => ({ ruleId: r.ruleId, name: r.name, authorityCode: r.authorityCode, rateBp: r.rateBp }));
+}

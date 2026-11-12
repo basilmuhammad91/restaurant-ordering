@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../../generated/prisma/client.js";
 import { env } from "../config/env.js";
+import "./decimal.js"; // decimals serialize as numbers
 
 // Prisma 7 talks to Postgres through the `pg` driver via this adapter.
 // The pool settings matter on a hosted database (Neon): it closes idle connections after a while, and a

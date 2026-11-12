@@ -1,7 +1,7 @@
 # Restoflux: Progress and Resume Guide
 
 > **A new session must read, in this order:** this file → [DECISIONS.md](DECISIONS.md) (what is approved) → [ARCHITECTURE.md](ARCHITECTURE.md) → [DATA_MODEL.md](DATA_MODEL.md) → [PRODUCT_SPEC.md](PRODUCT_SPEC.md). Then read the code of the phase you are about to extend.
-> **Last updated:** 2026-11-09.
+> **Last updated:** 2026-11-12 (Phases 4 to 8 built in one pass, at the owner's request to finish every "Soon" module).
 
 ## Working agreement
 - One phase per session. Build it, make `typecheck` and **all tests** pass, update these docs, **stop** with a summary, wait for review.
@@ -18,12 +18,12 @@
 | **1B** | Platform layer: Restoflux super-admin console, organization management, per-organization theme | **Built, tests running** (2026-11-09) |
 | **2a** | Catalog core: categories, products and sizes, modifiers, combos, menus and dayparts, prices, branch availability (86), demo menu, admin Menu screens | **Built, final test run in progress** (2026-11-10) |
 | 2b | Move the legacy menu into the new catalog, rebuild a thin storefront on it, remove the old admin pages from `web/` | Not started |
-| 3 | Orders, POS, KDS, payments, shifts and cash drawer | Not started |
-| 4 | Inventory, recipes, automatic deduction | Not started |
-| 5 | Purchasing and suppliers | Not started |
-| 6 | Dashboard and reports | Not started |
-| 7 | Customers, promotions, coupons, loyalty | Not started |
-| 8 | Delivery and staff | Not started |
+| **3** | Orders, POS, kitchen display, payments, shifts and cash drawer, Z-reports, dashboard sales | **Built, final test run in progress** (2026-11-10). Deferred: legacy storefront migration (2b), customers (7), service charge |
+| **4** | Inventory: items, stock on hand, recipes, counts, adjustments and waste, transfers, production, automatic deduction on completed orders | **Built, API tests green** (2026-11-12) |
+| **5** | Purchasing: suppliers and their packs and prices, purchase orders, receiving, supplier invoices and payments, suggested orders | **Built, API tests green** (2026-11-12) |
+| **6** | Reports: sales, end of day / Z, food cost, inventory, purchasing and supplier ledger, menu engineering, fraud watch | **Built, API tests green** (2026-11-12) |
+| **7** | Customers, loyalty, coupons, promotions (applied at the till, priced by the server), feedback | **Built, API tests green** (2026-11-12) |
+| **8** | Delivery (zones, riders, dispatch board), staff (employees, roster, time clock), receipt template, notification settings | **Built** (2026-11-12) |
 
 ## Baseline (before Phase 1)
 - **API** (`api/`): Express 5 + TypeScript ESM, Prisma 7.10.1 on Neon, Zod, JWT + bcrypt, Vitest + Supertest. Routes: auth, categories, menu-items, deals, orders, stats, health. **38 tests passing**, typecheck clean.
@@ -105,10 +105,78 @@ Open `http://localhost:5174/platform`. The first account is created with the scr
 - POS (Phase 3): category list on the left, product grid with photos, order-type tabs (online, dine-in, delivery, takeaway), settle / running orders, cart with subtotal, tax, service charge, discount, delivery charge, hold / sync.
 - Reports (Phase 6): dashboard tiles (net sale, tax, net sale incl. tax, delivery charges, service charges, total collected), sales by order type, by payment method, by channel (including aggregators), day of week, branch comparison, last three months; daily, monthly, work-period, source-wise, cancelled orders and cancelled items, income statement, expense report, supplier ledger, discounts, hourly sales, stock ledger and stock consumption.
 
+## What Phase 3 produced (orders, POS, kitchen, cash)
+- **Money maths in the shared contracts** (`packages/contracts/src/orders.ts`, 35 unit tests including randomized checks): tax added on top or already inside the price (round half up, per line, split per authority), discounts before tax spread over lines with no cent lost (largest remainder), cash tender and change, payment status, order status machine, expected cash, trading-day rule. The POS uses the SAME functions to show live totals, so the screen cannot disagree with the server.
+- **Data (migration `20261111090000_phase3_orders`):** `Order`, `OrderLine` (combo parts as child lines), `OrderLineModifier`, `OrderLineTax` (the stored tax breakdown), `OrderDiscount`, `OrderStatusEvent`, `Payment`, `Refund`, `OrderSequence`, `CashRegister`, `CashShift`, `CashMovement`, `ZReport`. Database-enforced: no negative money, refunds never exceed payments, one open shift per till, and payments, refunds, cash movements, status history and Z-reports are **append-only** (triggers). The old storefront OrderStatus enum was renamed in Prisma only (`LegacyOrderStatus`, same database type).
+- **The order engine** (`api/src/modules/orders/engine.ts`): an order is priced from the branch sellable menu and tax rules, never from client numbers; names, prices and tax rates are snapshotted. It validates required choices (min and max), that add-ons belong to the product, combo slots, 86 and unpriced items, table and delivery address.
+- **Safe to retry:** an order has a client-made id (same id means same order, even if two requests race), and payments too. Order numbers (KH-0042) are assigned atomically per branch and trading day.
+- **API** (`/api/v1`): `POST/PUT /orders`, `GET /orders` (filters, search), status changes, `/orders/:id/payments` (split tender, change, tips, reference), line void, refund, `/kds` (tickets per station, bump), `/pos/context` (everything the till needs, gated by `pos.access`), `/shifts` (open, movements, close with expected vs counted, blind close), `/cash-registers`, `/z-reports` (shift and day), `/reports/sales-summary`, `/dashboard/summary` (money hidden without `dashboard.financial.view`).
+- **Approvals wired in:** discounts above a role limit, voids and refunds above limits, and cancelling a sent order need a manager. The API error says exactly what to approve (including the payload hash), the till shows a PIN dialog, then retries. An approval is single-use and bound to that exact action.
+- **Admin screens:** **POS** (full screen: categories, photo cards, deals, dietary filters, search, size, add-on and combo pickers, basket with live totals, discount, hold, send, pay with split tender and change, receipt printing at 80 mm, running orders, open shift), **Live orders** board, **Kitchen display**, **Order history** with full detail (void, refund, receipt), **Shifts & cash** (open, cash in, cash out, paid out, safe drop, close and count, Z-reports, end-of-day report), and **real dashboard numbers** (net sales, tax, collected, per-day trend, order types, payment methods, channels, voids, refunds and cancellations, per currency).
+- **Demo data:** `npm run seed:demo-orders` adds about ten days of believable trading at the four demo branches (about 600 orders, shifts, Z-reports). `-- --reset` regenerates it.
+- **Connection pool:** the database client now drops idle connections early (Neon closes idle ones), which removed the intermittent "Server has closed the connection" test failures.
+
+### Decisions made while building Phase 3
+- A **cashier cannot void or refund at all** (least privilege, as approved). A manager voids and refunds; a custom role can hold `orders.void` with a small limit, and anything above it needs a manager PIN.
+- Tips handed over in cash count as cash in the drawer. Tax-inclusive and tax-exclusive branches coexist (the branch tax profile decides).
+- Held bills (status OPEN) are edited in place (`PUT /orders/:id`); once sent to the kitchen an order changes only by void or refund.
+
+### Known limitations (Phase 3)
+- Service charge is not modelled (tips are recorded per payment).
+- Stock is not deducted yet (Phase 4 posts it when an order completes).
+- No customer accounts yet (name and phone are stored on the order; Phase 7).
+- Delivery fees are typed at the till; zones and rider assignment come in Phase 8.
+- Receipts print through the browser (80 mm CSS); direct thermal-printer drivers and cash-drawer kick are not included.
+- The legacy storefront still uses its own order tables (Phase 2b migrates and rebuilds it).
+
+## What Phases 4 to 8 produced (the back office)
+Every item in the sidebar is now a real screen: the navigation has no "Soon" marker left. Each phase has its own migration and API test file (`tests/v1/inventory`, `purchasing`, `reports`, `marketing`, `operations`).
+
+### Phase 4: inventory (`modules/inventory`, migration `20261112090000_phase4_inventory`)
+- **One stock engine.** Every change to stock goes through `postMovement()` (`stock.ts`): it locks the branch's stock level, writes one ledger row, updates the running quantity and the **weighted average cost**, all in the caller's transaction. The ledger (`stock_movements`) is **append-only** (trigger) and stock can never go below zero except for sales (a sale is never blocked by a wrong shelf count).
+- **Data:** `InventoryItem` (unit kg/g/l/ml/pcs, kind RAW/PREP/PACKAGING, reference cost, reorder and par level), `StockLevel`, `StockMovement`, `Recipe` + `RecipeLine` (a menu variant or a prep batch, with waste %), `StockCount` (+lines), `StockTransfer` (+lines), `ProductionRun`. Quantities are decimals, shown to the API as numbers (`core/db/decimal.ts`).
+- **Automatic deduction:** completing an order takes its recipes' ingredients out of that branch's stock in the same transaction (`consumeForOrder`, idempotent). Items without a recipe use no stock.
+- **Screens:** Stock on hand (value, low and out, adjust), Items, Recipes (cost per portion), Counts (blind count sheet, submit, manager approves and stock is corrected), Adjustments and waste (the ledger plus the form), Transfers (request, ship, receive with shortages), Production (batches).
+- **Alerts:** an item falling to its reorder level raises a LOW_STOCK notification once a day per branch.
+
+### Phase 5: purchasing (`modules/purchasing`, migration `20261113090000_phase5_purchasing`)
+- Suppliers with payment terms; what they sell as **packs** (a 25 kg sack at a price, one preferred supplier per item); purchase orders (draft, approve, send, cancel); **receiving** posts PURCHASE ledger rows at the order's price (partial deliveries, over-receiving refused) and keeps the supplier's catalogue price current; direct receipts without an order; supplier invoices (unique per supplier, due date from terms), payments (append-only, never over the balance), void; **suggested orders** (items at their reorder level topped up to par, rounded up to whole packs, grouped by preferred supplier, unsourced items listed).
+
+### Phase 6: reports (`modules/reports`, no schema change)
+- Sales (overview, by day/week/month, by source, cancellations and refunds, tax and payments), End of day / Z list and generator, **Food cost** (theoretical from recipes plus waste and counted losses, actual %, coverage warning), **Inventory** (valuation by location and category, movement, most used), **Purchasing** (spend, payables ageing, biggest purchases, **supplier ledger** with running balance), **Menu engineering** (stars, plowhorses, puzzles, dogs), **Fraud watch** (voids, refunds, discounts, cash taken out, till shortages and write-offs per person, flagged when far above colleagues). **A report is always in one currency** (the organization's own unless another is chosen); CSV export on the main tables.
+
+### Phase 7: customers and marketing (`modules/customers`, migration `20261114090000_phase7_customers_marketing`)
+- **Customers** are matched to orders by phone number (normalised) and created automatically when an order with a phone number completes; profile shows orders, spend, last order, points and feedback.
+- **Coupons and promotions are priced by the server.** The till sends only a code or a promotion id (`offer` on the order); `offers.ts` checks it (active, dates, use limit, customer-bound, branch, weekday and time window in the branch's own time zone, minimum spend) and turns it into an ordinary order discount, so a cashier without discount rights can use one and nobody can invent an amount. Usage is counted when the order completes.
+- **Loyalty:** one programme per organization (spend per point, point value, minimum to redeem); points are earned on net spend when an order completes (organization's own currency only); the points ledger is append-only; redeeming turns points into a single-use coupon tied to the customer's phone number.
+- **Feedback:** ratings and comments per branch, reply, resolve, average and distribution.
+- **POS:** the Discount button opens "Coupon or offer" (code box and the promotions running right now) and, for people allowed, "Manual".
+
+### Phase 8: delivery, staff, settings (`modules/operations`, migration `20261115090000_phase8_delivery_staff`)
+- **Delivery:** zones with fee, minimum order and usual time (the POS shows them as one-tap chips that fill in the fee), riders, and a **dispatch board** (needs a rider, on the road, delivered): assign, picked up, delivered, failed with a reason, change rider. Picking up moves the order to "out for delivery"; delivering a paid order completes it (stock, coupons and loyalty follow as for any completed order); an unpaid one stays open for cash collection.
+- **Staff:** employees (a login is optional), a weekly **roster** (no overlapping shifts for one person, night shifts past midnight, copy a week), a **time clock** (clock in and out, one open entry per person enforced by the database, managers correct times with a mandatory reason that goes to the audit log) with hours and an estimated labour cost.
+- **Settings:** an organization **receipt template** (header, footer, tax breakdown, customer line) used by the printed receipt (a branch's own header and footer still win), and per-person **notification** switches that filter the bell.
+
+### Decisions made while building Phases 4 to 8
+- Costs are stored in **minor units per base unit** (decimals), and forms accept normal money. Cost in reports uses the average across stocked branches, or the reference cost when nothing is stocked.
+- Reports never add different currencies; a currency picker appears when branches use more than one.
+- A coupon or promotion needs no discount permission or manager approval, because the server decides its value; a manual discount still does.
+- Delivery assignment is separate from the order status machine; only pick-up and a paid delivery move the order.
+
+### Known limitations (Phases 4 to 8)
+- No batch or expiry tracking yet; no per-modifier stock use (add-ons do not deduct stock); refunds do not restock automatically (record a correction or waste entry).
+- Purchase order approval has no money limit yet (any holder of `purchasing.approve` approves); no credit notes or three-way invoice matching.
+- Reports show the organization's own currency by default and are not yet exportable to PDF. There is no income statement or expense report (no expense module yet).
+- Loyalty points are earned in the organization's own currency only; no tiers; no email or SMS to customers (opt-in is recorded).
+- Delivery has no live rider tracking or route maths; zones are named areas with a fee, not map polygons. The time clock is operated by managers (no self-service or PIN kiosk yet) and there is no payroll export.
+- Receipt templates are organization-wide (not per brand); direct thermal-printer drivers are still out of scope.
+- Real-time updates are still timer polling (kitchen 5 s, orders 8 s, dashboard 30 s); server push (SSE) is a hosting decision, see the realtime notes in DECISIONS.
+- Photo upload is not built: images are still URLs. Planned: Cloudflare R2 with signed uploads and resizing.
+
 ## Next steps
-1. **You:** review Phases 1 and 1B (sign in as the demo Owner, change the theme; sign in to `/platform`, create an organization, suspend it and watch its users get signed out).
-2. **You:** review Phase 2a (Menu screens in the admin app).
-3. **Phase 2b**, then **Phase 3** (orders, POS, kitchen display, shifts and cash), and so on through Phase 8 until no "Soon" item is left in the sidebar.
+1. **You:** review Phases 1 to 8 on the demo organization: `npm run seed:demo-ops -w api` adds sample inventory, recipes, suppliers, customers, offers, delivery and staff data to the demo tenant.
+2. **Open:** Phase 2b (move the legacy menu into the new catalog, rebuild a thin storefront on `catalog/sellable`, remove the old admin pages from `web/`).
+3. **Open:** image uploads (R2), server push for live screens, self-service sign-up and billing, support impersonation, and the limitations listed above.
 
 ## Change log
 | Date | Change |
@@ -117,3 +185,6 @@ Open `http://localhost:5174/platform`. The first account is created with the scr
 | 2026-11-09 | Phase 1 built: tenancy, org, IAM, approvals, audit, `/api/v1`, admin app shell. 219 API + 19 admin tests green. |
 | 2026-11-09 | Phase 1B built: platform console and API, organization lifecycle and plan limits, per-organization theme. |
 | 2026-11-10 | Phase 2a built: catalog schema, price resolution, menus and dayparts, 86, sellable menu API, admin Menu screens, demo menu. |
+| 2026-11-10 | Phase 3 built: order engine and money maths, POS, live orders, kitchen display, order history, shifts and cash, Z-reports, dashboard sales, demo orders. |
+| 2026-11-12 | POS menu restyled (skeleton loader, quiet cards); dashboard opens on the organization's currency. |
+| 2026-11-12 | Phases 4 to 8 built: inventory and recipes, purchasing, reports, customers and marketing (coupons, promotions, loyalty, feedback), delivery, staff, receipt template, notification settings. Every sidebar item is now a real screen. |

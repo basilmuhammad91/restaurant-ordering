@@ -40,7 +40,7 @@ model PlatformAuditLog {
   id             String   @id @default(uuid(7)) @db.Uuid
   platformUserId String?  @db.Uuid
   /// The organization acted on. A plain id, not a foreign key, so the history outlives a deleted tenant.
-  tenantId       String?  @db.Uuid
+  targetTenantId String?  @db.Uuid
   action         String
   entityType     String
   entityId       String
@@ -52,6 +52,6 @@ model PlatformAuditLog {
   occurredAt     DateTime @default(now()) @db.Timestamptz(3)
 
   @@index([occurredAt(sort: Desc), id(sort: Desc)])
-  @@index([tenantId, occurredAt(sort: Desc)])
+  @@index([targetTenantId, occurredAt(sort: Desc)])
   @@map("platform_audit_logs")
 }

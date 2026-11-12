@@ -62,6 +62,8 @@ const orderFields = {
   aggregatorName: text(60),
   aggregatorRef: text(60),
   discount: orderDiscountInputSchema.nullable().optional(),
+  /** A coupon code or a running promotion. The server looks it up and decides the amount; the till never sends one. */
+  offer: z.object({ couponCode: z.string().trim().min(1).max(40).optional(), promotionId: idSchema.optional() }).refine((o) => Boolean(o.couponCode) !== Boolean(o.promotionId), "Send a coupon code or a promotion, not both").nullable().optional(),
   /** When the sale really happened (an offline POS syncing later). Defaults to now. */
   occurredAt: z.iso.datetime().optional(),
 };

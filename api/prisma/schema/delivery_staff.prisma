@@ -1,0 +1,166 @@
+// DELIVERY, STAFF AND SETTINGS.
+// Delivery: zones with a fee, riders, and an assignment that follows one delivery order from "given to a rider"
+// to "delivered" (or "failed"). Staff: the people who work here (a login is optional), a weekly roster, and a time
+// clock whose entries become hours and a labour-cost estimate. Receipt template: the words printed on every receipt.
+
+enum DeliveryStatus {
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  FAILED
+}
+
+model DeliveryZone {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  tenantId         String    @db.Uuid
+  locationId       String    @db.Uuid
+  name             String
+  /// Charged to the customer, in the branch's currency.
+  feeMinor         Int       @default(0)
+  minOrderMinor    Int       @default(0)
+  estimatedMinutes Int       @default(45)
+  isActive         Boolean   @default(true)
+  deletedAt        DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@index([tenantId, locationId])
+  @@map("delivery_zones")
+}
+
+model Rider {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  tenantId  String    @db.Uuid
+  name      String
+  phone     String?
+  vehicle   String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant      Tenant               @relation(fields: [tenantId], references: [id])
+  assignments DeliveryAssignment[]
+
+  @@unique([tenantId, id])
+  @@map("riders")
+}
+
+/// One per delivery order. Re-assigning to another rider updates the row (the audit log keeps the history).
+model DeliveryAssignment {
+  id           String         @id @default(uuid(7)) @db.Uuid
+  tenantId     String         @db.Uuid
+  locationId   String         @db.Uuid
+  orderId      String         @unique @db.Uuid
+  riderId      String         @db.Uuid
+  status       DeliveryStatus @default(ASSIGNED)
+  assignedById String?        @db.Uuid
+  assignedAt   DateTime       @default(now()) @db.Timestamptz(3)
+  pickedUpAt   DateTime?      @db.Timestamptz(3)
+  deliveredAt  DateTime?      @db.Timestamptz(3)
+  failedReason String?
+  updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  rider    Rider    @relation(fields: [tenantId, riderId], references: [tenantId, id])
+
+  @@index([tenantId, locationId, status])
+  @@map("delivery_assignments")
+}
+
+model Employee {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  tenantId        String    @db.Uuid
+  /// The branch they normally work at (empty = works anywhere).
+  locationId      String?   @db.Uuid
+  /// Their login, if they have one.
+  userId          String?   @db.Uuid
+  name            String
+  phone           String?
+  email           String?
+  position        String?
+  /// Per hour, in the organization's own currency.
+  hourlyRateMinor Int?
+  startDate       DateTime? @db.Date
+  notes           String?
+  isActive        Boolean   @default(true)
+  deletedAt       DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  location Location?     @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  shifts   RosterShift[]
+  entries  TimeEntry[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, name])
+  @@map("employees")
+}
+
+model RosterShift {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tenantId    String   @db.Uuid
+  locationId  String   @db.Uuid
+  employeeId  String   @db.Uuid
+  shiftDate   DateTime @db.Date
+  /// "HH:MM" in the branch's own time. An end earlier than the start means the shift runs past midnight.
+  startTime   String
+  endTime     String
+  position    String?
+  note        String?
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  employee Employee @relation(fields: [tenantId, employeeId], references: [tenantId, id])
+
+  @@index([tenantId, locationId, shiftDate])
+  @@index([tenantId, employeeId, shiftDate])
+  @@map("roster_shifts")
+}
+
+model TimeEntry {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  tenantId     String    @db.Uuid
+  locationId   String    @db.Uuid
+  employeeId   String    @db.Uuid
+  clockInAt    DateTime  @db.Timestamptz(3)
+  clockOutAt   DateTime? @db.Timestamptz(3)
+  breakMinutes Int       @default(0)
+  note         String?
+  createdById  String?   @db.Uuid
+  /// Set when a manager corrected the times, with the reason in the audit log.
+  adjustedById String?   @db.Uuid
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  location Location @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  employee Employee @relation(fields: [tenantId, employeeId], references: [tenantId, id])
+
+  @@index([tenantId, locationId, clockInAt])
+  @@index([tenantId, employeeId, clockInAt])
+  @@map("time_entries")
+}
+
+/// What is printed on the customer's receipt, one set per organization.
+model ReceiptTemplate {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  tenantId         String   @unique @db.Uuid
+  headerText       String?
+  footerText       String?
+  showTaxBreakdown Boolean  @default(true)
+  showCustomer     Boolean  @default(true)
+  showCashier      Boolean  @default(true)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("receipt_templates")
+}

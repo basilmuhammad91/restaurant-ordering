@@ -16,7 +16,7 @@ export interface FieldOption {
 export interface FieldDef {
   name: string;
   label: string;
-  type: "text" | "number" | "textarea" | "switch" | "select" | "multicheck" | "password" | "email";
+  type: "text" | "number" | "textarea" | "switch" | "select" | "multicheck" | "password" | "email" | "date";
   options?: FieldOption[];
   placeholder?: string;
   hint?: string;

@@ -222,6 +222,8 @@ model OrderDiscount {
   note        String?
   appliedById String?           @db.Uuid
   approvalId  String?           @db.Uuid
+  /// The coupon or promotion this came from (when source is COUPON or PROMOTION).
+  offerId     String?           @db.Uuid
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   order  Order  @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Cascade)

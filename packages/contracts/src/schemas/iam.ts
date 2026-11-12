@@ -86,6 +86,8 @@ export const approvalOverrideInputSchema = z.object({
   entityId: z.string().trim().max(80).nullable().optional(),
   payloadHash: z.string().trim().min(8).max(128),
   amountMinor: minorAmountSchema.nullable().optional(),
+  /** For discounts: the percentage being approved, so the approver's own limit is enforced. */
+  percent: z.number().min(0).max(100).nullable().optional(),
   currencyCode: currencyCodeSchema.nullable().optional(),
   reason: z.string().trim().min(3).max(300),
 });

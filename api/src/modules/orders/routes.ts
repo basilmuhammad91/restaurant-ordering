@@ -12,6 +12,9 @@ import { offsetMeta, paging, parseSort } from "../../core/http/pagination.js";
 import { securedRouter } from "../../core/http/secured.js";
 import type { Principal } from "../../core/rbac/principal.js";
 import { guardAction, hashPayload } from "../approvals/service.js";
+import { afterOrderCompleted } from "../customers/hooks.js";
+import { assertMinimumSpend, normalizePhone, resolveOffer, type ResolvedOffer } from "../customers/offers.js";
+import { consumeForOrder } from "../inventory/stock.js";
 import { draftOrder, type OrderDraft } from "./engine.js";
 import { asDate, conflictError, loadOrder, nextOrderNumber, orderInclude, repriceOrder, toOrderDto } from "./shared.js";
 
@@ -36,9 +39,13 @@ async function recordStatus(tx: Tx, orderId: string, from: OrderStatus | null, t
 }
 
 /** The discount part of an order request: permission, reason, and the manager-approval threshold. */
-async function authorizeDiscount(tx: Tx, actor: Principal, orderId: string, input: OrderCreateInput, draft: OrderDraft) {
+type DiscountAuth = { reason: { id: string } | null; approvalId: string | null; offer: ResolvedOffer | null };
+
+async function authorizeDiscount(tx: Tx, actor: Principal, orderId: string, input: OrderCreateInput, draft: OrderDraft, offer: ResolvedOffer | null = null): Promise<DiscountAuth | null> {
   const d = input.discount;
   if (!d) return null;
+  // a coupon or promotion carries its own authority (the server priced it); no reason, permission or manager approval is involved
+  if (offer) return { reason: null, approvalId: null, offer };
   if (!actor.permissions.has("orders.discount")) throw forbidden("You do not have permission to give discounts");
   const reason = await reasonOf(tx, d.reasonId, "DISCOUNT");
   if (reason.requiresNote && !d.note?.trim()) throw fieldError("discount", "This reason needs a note");
@@ -48,12 +55,12 @@ async function authorizeDiscount(tx: Tx, actor: Principal, orderId: string, inpu
     type: "DISCOUNT", entityType: "Order", entityId: orderId, locationId: input.locationId, percent, payload, payloadHash: hashPayload(payload),
     reason: `${reason.name}${d.note ? `: ${d.note}` : ""}`, approvalId: d.approvalId ?? null,
   });
-  return { reason, approvalId };
+  return { reason, approvalId, offer: null };
 }
 
 
 /** Lines, modifiers, tax breakdown and discount of an order (used when creating one and when editing a held one). */
-async function writeChildren(tx: Tx, args: { id: string; locationId: string; input: OrderCreateInput; draft: OrderDraft; actor: Principal; sent: boolean; now: Date; discountAuth: { reason: { id: string }; approvalId: string | null } | null }) {
+async function writeChildren(tx: Tx, args: { id: string; locationId: string; input: OrderCreateInput; draft: OrderDraft; actor: Principal; sent: boolean; now: Date; discountAuth: DiscountAuth | null }) {
   const { id, locationId, input, draft, actor, sent, now, discountAuth } = args;
   const location = { id: locationId };
   const byKey = new Map(draft.priced.lines.map((p) => [p.key, p]));
@@ -76,15 +83,15 @@ async function writeChildren(tx: Tx, args: { id: string; locationId: string; inp
   if (input.discount && discountAuth) {
     await tx.orderDiscount.create({
       data: {
-        tenantId: tenantId(), orderId: id, source: "MANUAL", valueType: input.discount.type, value: input.discount.type === "PERCENT" ? toBasisPoints(input.discount.value) : Math.round(input.discount.value),
-        amountMinor: draft.priced.discountMinor, reasonId: discountAuth.reason.id, note: input.discount.note ?? null, appliedById: actor.userId, approvalId: discountAuth.approvalId,
+        tenantId: tenantId(), orderId: id, source: discountAuth.offer ? discountAuth.offer.kind : "MANUAL", offerId: discountAuth.offer?.id ?? null, valueType: input.discount.type, value: input.discount.type === "PERCENT" ? toBasisPoints(input.discount.value) : Math.round(input.discount.value),
+        amountMinor: draft.priced.discountMinor, reasonId: discountAuth.reason?.id ?? null, note: input.discount.note ?? null, appliedById: actor.userId, approvalId: discountAuth.approvalId,
       },
     });
   }
 }
 
 /** Write an order and everything that hangs off it, in the caller's transaction. */
-async function persistOrder(tx: Tx, args: { id: string; input: OrderCreateInput; draft: OrderDraft; actor: Principal; status: OrderStatus; occurredAt: Date; keepNumber?: number | null }) {
+async function persistOrder(tx: Tx, args: { id: string; input: OrderCreateInput; draft: OrderDraft; actor: Principal; status: OrderStatus; occurredAt: Date; keepNumber?: number | null; offer?: ResolvedOffer | null }) {
   const { id, input, draft, actor, status, occurredAt } = args;
   const location = await tx.location.findFirst({ where: { id: input.locationId } });
   if (!location || location.type !== "BRANCH" || !location.brandId) throw fieldError("locationId", "Orders can only be taken at a branch");
@@ -98,13 +105,13 @@ async function persistOrder(tx: Tx, args: { id: string; input: OrderCreateInput;
   const displayNumber = args.keepNumber ?? (await nextOrderNumber(tx, location.id, businessDate));
   const now = new Date();
   const sent = status !== "OPEN"; // a held bill has not gone to the kitchen
-  const discountAuth = await authorizeDiscount(tx, actor, id, input, draft);
+  const discountAuth = await authorizeDiscount(tx, actor, id, input, draft, args.offer ?? null);
 
   await tx.order.create({
     data: {
       id, tenantId: tenantId(), brandId: location.brandId, locationId: location.id, businessDate: asDate(businessDate), orderType: input.orderType, channel: input.channel,
       status, paymentStatus: "UNPAID", displayNumber, aggregatorName: input.aggregatorName ?? null, aggregatorRef: input.aggregatorRef ?? null,
-      customerName: input.customerName ?? null, customerPhone: input.customerPhone ?? null, tableId: input.tableId ?? null, covers: input.covers ?? null,
+      customerName: input.customerName ?? null, customerPhone: normalizePhone(input.customerPhone), tableId: input.tableId ?? null, covers: input.covers ?? null,
       deliveryAddress: input.deliveryAddress ?? undefined, currencyCode: location.currencyCode,
       subtotalMinor: draft.priced.subtotalMinor, discountMinor: draft.priced.discountMinor, taxMinor: draft.priced.taxMinor, deliveryFeeMinor: draft.priced.deliveryFeeMinor,
       totalMinor: draft.priced.totalMinor, pricesIncludeTax: draft.pricesIncludeTax, notes: input.notes ?? null, occurredAt, createdById: actor.userId,
@@ -120,7 +127,9 @@ const defaultStatus = (input: OrderCreateInput): OrderStatus => input.status ?? 
 
 // ---------------------------------------------------------------- create
 orders.post("/", "orders.create", async (req, res) => {
-  const input = orderCreateSchema.parse(req.body);
+  const parsed = orderCreateSchema.parse(req.body);
+  const offer = await resolveOffer(parsed);
+  const input: OrderCreateInput = offer ? { ...parsed, discount: offer.discount } : parsed;
   const actor = req.principal!;
   const id = input.id ?? randomUUID();
 
@@ -131,11 +140,12 @@ orders.post("/", "orders.create", async (req, res) => {
   const occurredAt = input.occurredAt ? new Date(input.occurredAt) : new Date();
   if (occurredAt.getTime() > Date.now() + 5 * 60_000) throw validationError("The order time is in the future", { fieldErrors: { occurredAt: ["The order time is in the future"] } });
   const draft = await draftOrder(input, occurredAt);
+  if (offer) assertMinimumSpend(offer, draft.priced.subtotalMinor);
 
   try {
     const full = await db.$transaction(async (tx) => {
       const status = defaultStatus(input);
-      const { location, displayNumber } = await persistOrder(tx, { id, input, draft, actor, status, occurredAt });
+      const { location, displayNumber } = await persistOrder(tx, { id, input, draft, actor, status, occurredAt, offer });
       const created = await loadOrder(tx, id);
       await recordAudit(tx, { action: "orders.create", entityType: "Order", entityId: id, locationId: location.id, after: { number: formatOrderNumber(location.orderPrefix, displayNumber), status, totalMinor: created.totalMinor, lines: created.lines.length } });
       return created;
@@ -180,7 +190,9 @@ orders.get("/:id", "orders.view", async (req, res) => {
 // ---------------------------------------------------------------- edit a held bill
 orders.put("/:id", "orders.update", async (req, res) => {
   const { id } = idParams.parse(req.params);
-  const input = { ...orderReplaceSchema.parse(req.body), id } as OrderCreateInput;
+  const parsed = { ...orderReplaceSchema.parse(req.body), id } as OrderCreateInput;
+  const offer = await resolveOffer(parsed);
+  const input: OrderCreateInput = offer ? { ...parsed, discount: offer.discount } : parsed;
   const actor = req.principal!;
 
   const before = await loadOrder(db, id);
@@ -188,10 +200,11 @@ orders.put("/:id", "orders.update", async (req, res) => {
   if (before.locationId !== input.locationId) throw fieldError("locationId", "An order cannot move to another branch");
   const occurredAt = input.occurredAt ? new Date(input.occurredAt) : before.occurredAt;
   const draft = await draftOrder(input, occurredAt);
+  if (offer) assertMinimumSpend(offer, draft.priced.subtotalMinor);
 
   const full = await db.$transaction(async (tx) => {
     const status = defaultStatus(input);
-    const discountAuth = await authorizeDiscount(tx, actor, id, input, draft);
+    const discountAuth = await authorizeDiscount(tx, actor, id, input, draft, offer);
     // the contents are replaced; the order itself (id, number, history) stays
     await tx.orderDiscount.deleteMany({ where: { orderId: id } });
     const lineIds = (await tx.orderLine.findMany({ where: { orderId: id }, select: { id: true } })).map((l) => l.id);
@@ -201,7 +214,7 @@ orders.put("/:id", "orders.update", async (req, res) => {
     await tx.order.update({
       where: { id },
       data: {
-        orderType: input.orderType, channel: input.channel, status, customerName: input.customerName ?? null, customerPhone: input.customerPhone ?? null,
+        orderType: input.orderType, channel: input.channel, status, customerName: input.customerName ?? null, customerPhone: normalizePhone(input.customerPhone),
         tableId: input.tableId ?? null, covers: input.covers ?? null, notes: input.notes ?? null, deliveryAddress: input.deliveryAddress ?? undefined,
         subtotalMinor: draft.priced.subtotalMinor, discountMinor: draft.priced.discountMinor, taxMinor: draft.priced.taxMinor, deliveryFeeMinor: draft.priced.deliveryFeeMinor,
         totalMinor: draft.priced.totalMinor, pricesIncludeTax: draft.pricesIncludeTax,
@@ -253,7 +266,11 @@ orders.post("/:id/status", ["orders.update", "orders.cancel"], async (req, res) 
       if (from === "OPEN" && FORWARD_STATUSES.has(to)) await tx.orderLine.updateMany({ where: { orderId: id, status: { not: "VOIDED" } }, data: { sentToKitchenAt: now } });
       if (to === "PREPARING") await tx.orderLine.updateMany({ where: { orderId: id, status: "NEW" }, data: { status: "PREPARING" } });
       if (to === "READY") await tx.orderLine.updateMany({ where: { orderId: id, status: { in: ["NEW", "PREPARING"] } }, data: { status: "READY", readyAt: now } });
-      if (to === "COMPLETED") await tx.orderLine.updateMany({ where: { orderId: id, status: { in: ["NEW", "PREPARING", "READY"] } }, data: { status: "SERVED" } });
+      if (to === "COMPLETED") {
+        await tx.orderLine.updateMany({ where: { orderId: id, status: { in: ["NEW", "PREPARING", "READY"] } }, data: { status: "SERVED" } });
+        await consumeForOrder(tx, id); // ingredients leave stock in the same transaction
+        await afterOrderCompleted(tx, id); // coupons counted, customer remembered, loyalty points earned
+      }
       await recordStatus(tx, id, from, to, input.note);
       await recordAudit(tx, { action: "orders.status", entityType: "Order", entityId: id, locationId: order.locationId, before: { status: from }, after: { status: to } });
     }

@@ -1,0 +1,160 @@
+// CUSTOMERS AND MARKETING.
+// Customers are matched to orders by phone number (that is what a cashier asks for), so there is no sign-up step.
+// Coupons and promotions are both ways to give a discount that the SERVER decides and verifies: the till only
+// sends a code or an offer id, never an amount it made up. Loyalty points are an append-only ledger.
+
+enum LoyaltyTxType {
+  EARN
+  REDEEM
+  ADJUST
+}
+
+enum FeedbackStatus {
+  NEW
+  REPLIED
+  RESOLVED
+}
+
+model Customer {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  tenantId       String    @db.Uuid
+  name           String
+  phone          String?
+  email          String?
+  notes          String?
+  birthday       DateTime? @db.Date
+  marketingOptIn Boolean   @default(false)
+  /// The running total of the points ledger.
+  loyaltyPoints  Int       @default(0)
+  deletedAt      DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant               @relation(fields: [tenantId], references: [id])
+  ledger   LoyaltyTransaction[]
+  coupons  Coupon[]
+  feedback Feedback[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, name])
+  @@map("customers")
+}
+
+/// One programme per organization: how points are earned and what they are worth.
+model LoyaltyProgram {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  tenantId          String   @unique @db.Uuid
+  isEnabled         Boolean  @default(false)
+  /// Net spend (minor units, in the organization's own currency) that earns ONE point.
+  earnPerPointMinor Int      @default(10000)
+  /// What ONE point is worth when redeemed (minor units).
+  redeemValueMinor  Int      @default(100)
+  minRedeemPoints   Int      @default(100)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("loyalty_programs")
+}
+
+/// Append-only. A correction is a new ADJUST row.
+model LoyaltyTransaction {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  tenantId     String        @db.Uuid
+  customerId   String        @db.Uuid
+  type         LoyaltyTxType
+  /// Signed: earned is positive, redeemed is negative.
+  points       Int
+  balanceAfter Int
+  orderId      String?       @db.Uuid
+  note         String?
+  createdById  String?       @db.Uuid
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  customer Customer @relation(fields: [tenantId, customerId], references: [tenantId, id])
+
+  @@index([tenantId, customerId, createdAt])
+  @@map("loyalty_transactions")
+}
+
+/// A code a customer types or shows. PERCENT values are stored in basis points (1000 = 10%), like order discounts.
+model Coupon {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  tenantId         String            @db.Uuid
+  code             String
+  description      String?
+  valueType        DiscountValueType
+  value            Int
+  minSubtotalMinor Int               @default(0)
+  maxUses          Int?
+  usedCount        Int               @default(0)
+  validFrom        DateTime?         @db.Date
+  validTo          DateTime?         @db.Date
+  /// Set when the coupon was issued to one customer (a loyalty redemption).
+  customerId       String?           @db.Uuid
+  isActive         Boolean           @default(true)
+  deletedAt        DateTime?         @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  customer Customer? @relation(fields: [tenantId, customerId], references: [tenantId, id])
+
+  @@unique([tenantId, id])
+  @@map("coupons")
+}
+
+/// An offer a cashier can apply in one tap while it is running (happy hour, weekday lunch, a launch week).
+model Promotion {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  tenantId         String            @db.Uuid
+  name             String
+  description      String?
+  valueType        DiscountValueType
+  value            Int
+  minSubtotalMinor Int               @default(0)
+  validFrom        DateTime?         @db.Date
+  validTo          DateTime?         @db.Date
+  /// 0 = Sunday ... 6 = Saturday. Empty means every day.
+  daysOfWeek       Int[]
+  /// "HH:MM" in the branch's own time. Both empty means all day.
+  startTime        String?
+  endTime          String?
+  /// Empty means every branch.
+  locationIds      String[]          @db.Uuid
+  isActive         Boolean           @default(true)
+  deletedAt        DateTime?         @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, id])
+  @@map("promotions")
+}
+
+model Feedback {
+  id          String         @id @default(uuid(7)) @db.Uuid
+  tenantId    String         @db.Uuid
+  locationId  String         @db.Uuid
+  orderId     String?        @db.Uuid
+  customerId  String?        @db.Uuid
+  /// 1 to 5.
+  rating      Int
+  comment     String?
+  source      String         @default("STAFF")
+  status      FeedbackStatus @default(NEW)
+  reply       String?
+  repliedById String?        @db.Uuid
+  repliedAt   DateTime?      @db.Timestamptz(3)
+  createdById String?        @db.Uuid
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  location Location  @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  customer Customer? @relation(fields: [tenantId, customerId], references: [tenantId, id])
+
+  @@index([tenantId, locationId, createdAt])
+  @@map("feedback")
+}

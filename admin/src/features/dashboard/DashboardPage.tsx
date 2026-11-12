@@ -1,17 +1,18 @@
 import type { PermissionKey } from "@restoflux/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Building2, CheckCircle2, ChevronRight, Circle, ClipboardCheck, ShoppingBag, Users, Warehouse } from "lucide-react";
+import { Building2, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Users, Warehouse } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { PageHeader } from "@/components/page/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SalesPanel } from "./SalesPanel";
 import { api, type Paged } from "@/lib/api";
 import { useAuth, useMe } from "@/lib/auth";
 
-// Phase 1 dashboard: a setup checklist and live counts. The sales, food-cost and channel charts arrive
-// with the orders and reports phases; until then those cards say so instead of showing made-up numbers.
+// The dashboard: sales for the brand, branches and dates chosen in the top bar, then a setup checklist and counts.
+// Food cost and the deeper reports arrive with the inventory and reports phases.
 
 function useCount(path: string, enabled: boolean, params: Record<string, string> = {}) {
   return useQuery({
@@ -50,13 +51,6 @@ function Step({ done, title, hint, to, can }: { done: boolean; title: string; hi
   return can ? <Link to={to}>{inner}</Link> : <div className="opacity-60">{inner}</div>;
 }
 
-const LATER = [
-  { title: "Net sales", phase: "Orders & POS" },
-  { title: "Orders by status", phase: "Orders & POS" },
-  { title: "Food cost %", phase: "Inventory" },
-  { title: "Channel mix", phase: "Orders & POS" },
-];
-
 export default function DashboardPage() {
   const me = useMe();
   const { can } = useAuth();
@@ -76,6 +70,8 @@ export default function DashboardPage() {
     <>
       <PageHeader title={`${greeting}, ${me.user.name.split(" ")[0]}`} description={`${me.tenant.name} · ${me.allLocations ? "all branches" : `${me.locations.length} branch${me.locations.length === 1 ? "" : "es"}`}`} />
 
+      {can("dashboard.view") && <SalesPanel />}
+
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Brands" value={brands.data ?? "-"} icon={<Building2 />} to="/org/brands" loading={org && brands.isPending} />
         <Stat label="Branches" value={branches.data ?? "-"} icon={<Warehouse />} to="/org/locations" loading={org && branches.isPending} />
@@ -85,7 +81,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-5">
         {org && (
-          <Card className="lg:col-span-3">
+          <Card className="lg:col-span-5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">Set up your company {setupDone && <Badge className="bg-emerald-600">Done</Badge>}</CardTitle>
               <CardDescription>The foundations every branch needs before it can take orders.</CardDescription>
@@ -100,20 +96,6 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        <Card className={org ? "lg:col-span-2" : "lg:col-span-5"}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="size-5 text-muted-foreground" /> Performance</CardTitle>
-            <CardDescription>These fill in as the modules are switched on.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2">
-            {LATER.map((l) => (
-              <div key={l.title} className="rounded-lg border border-dashed p-3">
-                <div className="flex items-center gap-2 text-sm font-medium"><ShoppingBag className="size-4 text-muted-foreground" />{l.title}</div>
-                <div className="mt-1 text-xs text-muted-foreground">Available with {l.phase}</div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
       </div>
     </>
   );

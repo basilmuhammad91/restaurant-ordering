@@ -318,3 +318,24 @@ Order of generation: currencies/units → tenant, brands, locations, tax profile
 - `Price`: `validFrom` / `validTo` were NOT built (promotions in Phase 7 handle time-limited prices). `channel` uses a new enum `PriceChannel` (POS, WEB, ANDROID, IOS, PHONE, AGGREGATOR); Phase 3 reuses it for orders. Uniqueness is two partial unique indexes (channel null / not null) over COALESCE of the four targets and two scopes. `currencyCode` is stamped by the API from the price book or branch.
 - `LocationAvailability` is location-scoped (a branch-limited user sees and changes only their branches). `Price` is location-scoped when `locationId` is set (branch overrides) and company-wide otherwise.
 - `ModifierOption.isDefault` marks a preselected option; option and variant removal is a soft delete.
+
+---
+
+## 9. Phase 3: as built (deltas from section 3.6)
+- `Order.channel` reuses the `PriceChannel` enum (POS, WEB, ANDROID, IOS, PHONE, AGGREGATOR). The aggregator is two text columns (`aggregatorName`, `aggregatorRef`); the `Aggregator` table with commission comes with Phase 8. No `customerId` yet (name and phone snapshot only). No service-charge column.
+- `OrderLineTax` stores `rateBp` (basis points) instead of a decimal rate. `OrderDiscount.value` is basis points for PERCENT and minor units for AMOUNT.
+- `Refund` is order-level (amount, method, reason); line-level refunds with restock arrive with Phase 4.
+- One OPEN `CashShift` per register is a partial unique index. `Payment.status` exists but payments are never voided (a mistake is a refund).
+- The Prisma enum for order status is mapped to the database type `order_status`; the legacy enum keeps the old type name `OrderStatus`.
+- `PlatformAuditLog.tenantId` was renamed `targetTenantId` so that "a column named tenantId means tenant-owned" holds everywhere.
+
+## 10. Back-office tables built in Phases 4 to 8 (what is actually in the database)
+
+Where §3 sketched these modules, this is what was built. All are tenant scoped; the ones with a `locationId` are also branch scoped (declared in `api/src/core/db/meta.ts`, checked by the tenancy coverage test).
+
+| Area | Tables | Notes |
+|---|---|---|
+| Inventory | `inventory_items`, `stock_levels`, `stock_movements`, `recipes`, `recipe_lines`, `stock_counts`, `stock_count_lines`, `stock_transfers`, `stock_transfer_lines`, `production_runs` | Quantities `Decimal(14,3)`, costs `Decimal(18,6)` per base unit. `stock_movements` is append-only (trigger). One recipe per menu variant or prep item (CHECK exactly one target). Transfers carry two location columns and are not branch scoped; the routes check the person can see either end. |
+| Purchasing | `suppliers`, `supplier_items`, `purchase_orders`, `purchase_order_lines`, `goods_receipts`, `goods_receipt_lines`, `supplier_invoices`, `supplier_payments` | Prices are per pack in minor units; `supplier_payments` is append-only; an invoice cannot be paid beyond its total (CHECK). |
+| Customers and marketing | `customers`, `loyalty_programs`, `loyalty_transactions`, `coupons`, `promotions`, `feedback` | Customers are matched by normalised phone (partial unique index). Percent values are stored as basis points. `loyalty_transactions` is append-only. `order_discounts.offerId` records the coupon or promotion behind a discount. |
+| Delivery and staff | `delivery_zones`, `riders`, `delivery_assignments`, `employees`, `roster_shifts`, `time_entries`, `receipt_templates` | One open time entry per employee (partial unique index). Roster times are `HH:MM` strings in the branch's own time; an end earlier than the start means past midnight. |

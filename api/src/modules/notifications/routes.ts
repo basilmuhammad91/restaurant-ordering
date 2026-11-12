@@ -24,18 +24,25 @@ function visibleTo(p: Principal) {
   };
 }
 
+/** Alert types this person switched off in Settings > Notifications. */
+async function mutedTypes(p: Principal): Promise<string[]> {
+  const rows = await db.notificationPreference.findMany({ where: { userId: p.userId, inApp: false }, select: { type: true } });
+  return rows.map((r) => r.type);
+}
+
 get("/", "authenticated", async (req, res) => {
   const p = req.principal!;
+  const muted = await mutedTypes(p);
   const q = cursorQuerySchema.extend({ unread: z.enum(["true", "false"]).transform((v) => v === "true").optional() }).parse(req.query);
 
-  const and: Record<string, unknown>[] = [visibleTo(p)];
+  const and: Record<string, unknown>[] = [visibleTo(p), ...(muted.length ? [{ type: { notIn: muted } }] : [])];
   const cursor = afterCursor("createdAt", q.cursor);
   if (cursor) and.push(cursor);
   if (q.unread) and.push({ readAt: null });
 
   const [rows, unreadCount] = await Promise.all([
     db.notification.findMany({ where: { AND: and }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: q.limit + 1 }),
-    db.notification.count({ where: { AND: [visibleTo(p), { readAt: null }] } }),
+    db.notification.count({ where: { AND: [...and.slice(0, 1 + (muted.length ? 1 : 0)), { readAt: null }] } }),
   ]);
   const page = rows.slice(0, q.limit);
   const last = page.at(-1);

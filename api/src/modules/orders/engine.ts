@@ -1,5 +1,5 @@
 import {
-  priceOrder, toBasisPoints, type OrderCreateInput, type OrderDiscountInput, type PriceChannel, type PricedOrder, type TaxRuleInput,
+  priceOrder, selectTaxRules, toBasisPoints, type OrderCreateInput, type OrderDiscountInput, type PriceChannel, type PricedOrder, type TaxRuleInput,
 } from "@restoflux/contracts";
 import { randomUUID } from "node:crypto";
 import { fieldError } from "../../core/http/errors.js";
@@ -11,7 +11,7 @@ import { buildSellableMenu, type SellableCombo, type SellableProduct, type Sella
 // (the same data the POS shows) and calculated with the shared money functions.
 // (Laravel: the CheckoutService that freezes an invoice.)
 
-type Menu = Awaited<ReturnType<typeof buildSellableMenu>>;
+export type Menu = Awaited<ReturnType<typeof buildSellableMenu>>;
 
 export interface LineDraft {
   id: string;
@@ -39,15 +39,9 @@ export interface OrderDraft {
   discountInput: OrderDiscountInput | null;
 }
 
-/** Tax rules that apply to one product's tax category, for one order type, at one moment. */
-export function rulesFor(menu: Menu, taxCategoryId: string | null, orderType: string, at: Date): TaxRuleInput[] {
-  if (!menu.tax) return [];
-  return menu.tax.rules
-    .filter((r) => r.taxCategoryId === null || r.taxCategoryId === taxCategoryId)
-    .filter((r) => r.orderTypes.length === 0 || r.orderTypes.includes(orderType))
-    .filter((r) => (!r.validFrom || new Date(r.validFrom) <= at) && (!r.validTo || new Date(r.validTo) > at))
-    .map((r) => ({ ruleId: r.ruleId, name: r.name, authorityCode: r.authorityCode, rateBp: r.rateBp }));
-}
+/** Tax rules for a product at this branch (the same function the POS uses to preview totals). */
+export const rulesFor = (menu: Menu, taxCategoryId: string | null, orderType: string, at: Date): TaxRuleInput[] =>
+  menu.tax ? selectTaxRules(menu.tax.rules, taxCategoryId, orderType, at) : [];
 
 function findVariant(menu: Menu, variantId: string): { product: SellableProduct; variant: SellableVariant } | null {
   for (const c of menu.categories) for (const p of c.products) {
@@ -57,9 +51,16 @@ function findVariant(menu: Menu, variantId: string): { product: SellableProduct;
   return null;
 }
 
+type DraftInput = Pick<OrderCreateInput, "locationId" | "orderType" | "channel" | "lines" | "deliveryFeeMinor" | "discount">;
+
 /** Price an order request against the branch's menu. Throws a field error for anything that cannot be sold. */
-export async function draftOrder(input: Pick<OrderCreateInput, "locationId" | "orderType" | "channel" | "lines" | "deliveryFeeMinor" | "discount">, at: Date): Promise<OrderDraft> {
+export async function draftOrder(input: DraftInput, at: Date): Promise<OrderDraft> {
   const menu = await buildSellableMenu({ locationId: input.locationId, channel: input.channel as PriceChannel, at: at.toISOString() });
+  return draftFromMenu(menu, input, at);
+}
+
+/** The same, on a menu that is already loaded (the demo-data seed prices hundreds of orders without a query each). */
+export function draftFromMenu(menu: Menu, input: DraftInput, at: Date): OrderDraft {
   const lines: LineDraft[] = [];
   let sort = 0;
 

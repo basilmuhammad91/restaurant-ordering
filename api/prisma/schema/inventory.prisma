@@ -1,0 +1,283 @@
+// INVENTORY.
+// Stock is never edited in place. Every change (a delivery, a sale, waste, a count, a transfer) is a row in the
+// stock ledger (stock_movements, append-only); "stock on hand" per branch is a running total kept beside it
+// (stock_levels) and always equals the sum of the ledger. Quantities are in the item's own unit (kg, l, pcs ...);
+// costs are minor units per ONE unit of the item and can be fractional, so they are decimals.
+// (Laravel: a stock_movements table plus a cached stock column, updated in the same DB transaction.)
+
+enum InventoryItemKind {
+  RAW
+  PREP
+  PACKAGING
+}
+
+enum StockMovementType {
+  OPENING
+  PURCHASE
+  SALE
+  SALE_REVERSAL
+  ADJUSTMENT
+  WASTE
+  EXPIRED
+  DAMAGE
+  STAFF_MEAL
+  COUNT
+  TRANSFER_OUT
+  TRANSFER_IN
+  PRODUCTION_IN
+  PRODUCTION_OUT
+}
+
+enum StockCountStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  CANCELLED
+}
+
+enum StockTransferStatus {
+  REQUESTED
+  IN_TRANSIT
+  RECEIVED
+  CANCELLED
+}
+
+model InventoryItem {
+  id            String            @id @default(uuid(7)) @db.Uuid
+  tenantId      String            @db.Uuid
+  name          String
+  sku           String?
+  kind          InventoryItemKind @default(RAW)
+  /// kg, g, l, ml or pcs. Everything about this item (stock, recipes, cost) is counted in this unit.
+  unit          String
+  category      String?
+  /// Cost per unit used until the first real purchase sets an average.
+  referenceCost Decimal           @default(0) @db.Decimal(18, 6)
+  /// Below this the item shows as "low" and appears in suggested orders.
+  reorderLevel  Decimal?          @db.Decimal(14, 3)
+  /// The level a purchase order tops the branch back up to.
+  parLevel      Decimal?          @db.Decimal(14, 3)
+  isActive      Boolean           @default(true)
+  deletedAt     DateTime?         @db.Timestamptz(3)
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @db.Timestamptz(3)
+
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
+  levels         StockLevel[]
+  movements      StockMovement[]
+  recipeLines    RecipeLine[]
+  preparedBy     Recipe[]            @relation("RecipePrepItem")
+  countLines     StockCountLine[]
+  transferLines  StockTransferLine[]
+  productionRuns ProductionRun[]
+  supplierItems  SupplierItem[]
+  poLines        PurchaseOrderLine[]
+  receiptLines   GoodsReceiptLine[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, name])
+  @@map("inventory_items")
+}
+
+model StockLevel {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  tenantId   String   @db.Uuid
+  locationId String   @db.Uuid
+  itemId     String   @db.Uuid
+  qty        Decimal  @default(0) @db.Decimal(14, 3)
+  /// Weighted average cost per unit at this branch.
+  avgCost    Decimal  @default(0) @db.Decimal(18, 6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  location Location      @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  item     InventoryItem @relation(fields: [tenantId, itemId], references: [tenantId, id])
+
+  @@unique([locationId, itemId])
+  @@index([tenantId, locationId])
+  @@map("stock_levels")
+}
+
+/// The ledger. qty is signed: stock in is positive, stock out is negative.
+model StockMovement {
+  id           String            @id @default(uuid(7)) @db.Uuid
+  tenantId     String            @db.Uuid
+  locationId   String            @db.Uuid
+  itemId       String            @db.Uuid
+  type         StockMovementType
+  qty          Decimal           @db.Decimal(14, 3)
+  unitCost     Decimal           @default(0) @db.Decimal(18, 6)
+  /// The trading day (not the calendar day) the movement belongs to.
+  businessDate DateTime          @db.Date
+  reason       String?
+  /// What caused it: "ORDER", "COUNT", "TRANSFER", "PRODUCTION", "RECEIPT" and the id of that document.
+  refType      String?
+  refId        String?
+  createdById  String?           @db.Uuid
+  createdAt    DateTime          @default(now()) @db.Timestamptz(3)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  location Location      @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  item     InventoryItem @relation(fields: [tenantId, itemId], references: [tenantId, id])
+
+  @@index([tenantId, locationId, itemId, createdAt])
+  @@index([tenantId, locationId, businessDate])
+  @@index([tenantId, refType, refId])
+  @@map("stock_movements")
+}
+
+/// What one portion of a menu variant (or one batch of a prep item) is made from.
+model Recipe {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  tenantId   String   @db.Uuid
+  /// Exactly one of these is set (a CHECK constraint enforces it).
+  variantId  String?  @db.Uuid
+  prepItemId String?  @db.Uuid
+  /// A batch recipe says how much it makes (e.g. 5 l of sauce); a menu recipe is always 1 portion.
+  yieldQty   Decimal  @default(1) @db.Decimal(14, 3)
+  notes      String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id])
+  variant  ProductVariant? @relation(fields: [tenantId, variantId], references: [tenantId, id])
+  prepItem InventoryItem?  @relation("RecipePrepItem", fields: [tenantId, prepItemId], references: [tenantId, id])
+  lines    RecipeLine[]
+
+  @@unique([tenantId, id])
+  @@unique([variantId])
+  @@unique([prepItemId])
+  @@map("recipes")
+}
+
+model RecipeLine {
+  id           String  @id @default(uuid(7)) @db.Uuid
+  tenantId     String  @db.Uuid
+  recipeId     String  @db.Uuid
+  itemId       String  @db.Uuid
+  /// In the ingredient's own unit.
+  qty          Decimal @db.Decimal(14, 4)
+  /// Trim and cooking loss: 10 means 10% more must be bought than ends up on the plate.
+  wastePercent Decimal @default(0) @db.Decimal(5, 2)
+  sortOrder    Int     @default(0)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  recipe Recipe        @relation(fields: [tenantId, recipeId], references: [tenantId, id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [tenantId, itemId], references: [tenantId, id])
+
+  @@unique([recipeId, itemId])
+  @@index([tenantId, recipeId])
+  @@map("recipe_lines")
+}
+
+model StockCount {
+  id           String           @id @default(uuid(7)) @db.Uuid
+  tenantId     String           @db.Uuid
+  locationId   String           @db.Uuid
+  number       String
+  status       StockCountStatus @default(DRAFT)
+  businessDate DateTime         @db.Date
+  note         String?
+  createdById  String?          @db.Uuid
+  submittedAt  DateTime?        @db.Timestamptz(3)
+  approvedById String?          @db.Uuid
+  approvedAt   DateTime?        @db.Timestamptz(3)
+  createdAt    DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime         @updatedAt @db.Timestamptz(3)
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id])
+  location Location         @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  lines    StockCountLine[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, number])
+  @@index([tenantId, locationId, status])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tenantId    String   @db.Uuid
+  countId     String   @db.Uuid
+  itemId      String   @db.Uuid
+  /// What the system believed was on the shelf when the count was started.
+  expectedQty Decimal  @db.Decimal(14, 3)
+  /// Null until someone counts it.
+  countedQty  Decimal? @db.Decimal(14, 3)
+  unitCost    Decimal  @default(0) @db.Decimal(18, 6)
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id])
+  count  StockCount    @relation(fields: [tenantId, countId], references: [tenantId, id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [tenantId, itemId], references: [tenantId, id])
+
+  @@unique([countId, itemId])
+  @@index([tenantId, countId])
+  @@map("stock_count_lines")
+}
+
+/// Stock moving between two locations. Both ends may be branches, warehouses or a central kitchen. The two
+/// locations are plain columns here (not location-scoped): the routes check the person can see either end.
+model StockTransfer {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  tenantId       String              @db.Uuid
+  number         String
+  fromLocationId String              @db.Uuid
+  toLocationId   String              @db.Uuid
+  status         StockTransferStatus @default(REQUESTED)
+  note           String?
+  requestedById  String?             @db.Uuid
+  shippedAt      DateTime?           @db.Timestamptz(3)
+  receivedById   String?             @db.Uuid
+  receivedAt     DateTime?           @db.Timestamptz(3)
+  createdAt      DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(3)
+
+  tenant Tenant              @relation(fields: [tenantId], references: [id])
+  lines  StockTransferLine[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, number])
+  @@index([tenantId, fromLocationId, status])
+  @@index([tenantId, toLocationId, status])
+  @@map("stock_transfers")
+}
+
+model StockTransferLine {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  tenantId    String   @db.Uuid
+  transferId  String   @db.Uuid
+  itemId      String   @db.Uuid
+  qty         Decimal  @db.Decimal(14, 3)
+  /// What actually arrived (can be less than sent).
+  receivedQty Decimal? @db.Decimal(14, 3)
+  unitCost    Decimal  @default(0) @db.Decimal(18, 6)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  transfer StockTransfer @relation(fields: [tenantId, transferId], references: [tenantId, id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [tenantId, itemId], references: [tenantId, id])
+
+  @@index([tenantId, transferId])
+  @@map("stock_transfer_lines")
+}
+
+/// A batch made in a central kitchen: uses ingredients (per the recipe) and produces a prep item.
+model ProductionRun {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  tenantId     String   @db.Uuid
+  locationId   String   @db.Uuid
+  prepItemId   String   @db.Uuid
+  /// How much of the prep item came out, in its own unit.
+  producedQty  Decimal  @db.Decimal(14, 3)
+  businessDate DateTime @db.Date
+  note         String?
+  createdById  String?  @db.Uuid
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id])
+  location Location      @relation(fields: [tenantId, locationId], references: [tenantId, id])
+  prepItem InventoryItem @relation(fields: [tenantId, prepItemId], references: [tenantId, id])
+
+  @@index([tenantId, locationId, createdAt])
+  @@map("production_runs")
+}

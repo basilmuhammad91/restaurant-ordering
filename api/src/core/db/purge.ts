@@ -13,10 +13,14 @@ export async function purgeTenant(tenantId: string): Promise<void> {
       await tx.notificationPreference.deleteMany({ where });
       await tx.notification.deleteMany({ where });
       await tx.approvalRequest.deleteMany({ where });
+      await deleteOperations(tx, tenantId);
+      await deleteMarketing(tx, tenantId);
       await deleteSales(tx, tenantId);
+      await deletePurchasing(tx, tenantId);
+      await deleteInventory(tx, tenantId);
       await deleteCatalog(tx, tenantId);
       await tx.auditLog.deleteMany({ where });
-      await tx.platformAuditLog.deleteMany({ where }); // what the Restoflux team did to this tenant
+      await tx.platformAuditLog.deleteMany({ where: { targetTenantId: tenantId } }); // what the Restoflux team did to this tenant
       await tx.loginEvent.deleteMany({ where });
       await tx.session.deleteMany({ where });
       await tx.userLocation.deleteMany({ where });
@@ -54,6 +58,60 @@ export async function purgePlatformUser(platformUserId: string): Promise<void> {
 }
 
 type PurgeTx = Parameters<Parameters<typeof unscopedDb.$transaction>[0]>[0];
+
+/** Delete a tenant's delivery, staff, roster, time clock and receipt template, children first. */
+export async function deleteOperations(tx: PurgeTx, tenantId: string): Promise<void> {
+  const where = { tenantId };
+  await tx.timeEntry.deleteMany({ where });
+  await tx.rosterShift.deleteMany({ where });
+  await tx.employee.deleteMany({ where });
+  await tx.deliveryAssignment.deleteMany({ where });
+  await tx.rider.deleteMany({ where });
+  await tx.deliveryZone.deleteMany({ where });
+  await tx.receiptTemplate.deleteMany({ where });
+}
+
+/** Delete a tenant's customers, loyalty, coupons, promotions and feedback, children first. */
+export async function deleteMarketing(tx: PurgeTx, tenantId: string): Promise<void> {
+  const where = { tenantId };
+  await tx.$executeRaw`SELECT set_config('app.allow_purge', 'on', true)`;
+  await tx.feedback.deleteMany({ where });
+  await tx.loyaltyTransaction.deleteMany({ where });
+  await tx.coupon.deleteMany({ where });
+  await tx.promotion.deleteMany({ where });
+  await tx.loyaltyProgram.deleteMany({ where });
+  await tx.customer.deleteMany({ where });
+}
+
+/** Delete a tenant's suppliers, purchase orders, receipts, invoices and payments, children first. */
+export async function deletePurchasing(tx: PurgeTx, tenantId: string): Promise<void> {
+  const where = { tenantId };
+  await tx.$executeRaw`SELECT set_config('app.allow_purge', 'on', true)`;
+  await tx.supplierPayment.deleteMany({ where });
+  await tx.supplierInvoice.deleteMany({ where });
+  await tx.goodsReceiptLine.deleteMany({ where });
+  await tx.goodsReceipt.deleteMany({ where });
+  await tx.purchaseOrderLine.deleteMany({ where });
+  await tx.purchaseOrder.deleteMany({ where });
+  await tx.supplierItem.deleteMany({ where });
+  await tx.supplier.deleteMany({ where });
+}
+
+/** Delete a tenant's stock records and recipes, children first (the ledger is append-only: the purge override lifts that). */
+export async function deleteInventory(tx: PurgeTx, tenantId: string): Promise<void> {
+  const where = { tenantId };
+  await tx.$executeRaw`SELECT set_config('app.allow_purge', 'on', true)`;
+  await tx.stockMovement.deleteMany({ where });
+  await tx.stockLevel.deleteMany({ where });
+  await tx.stockCountLine.deleteMany({ where });
+  await tx.stockCount.deleteMany({ where });
+  await tx.stockTransferLine.deleteMany({ where });
+  await tx.stockTransfer.deleteMany({ where });
+  await tx.productionRun.deleteMany({ where });
+  await tx.recipeLine.deleteMany({ where });
+  await tx.recipe.deleteMany({ where });
+  await tx.inventoryItem.deleteMany({ where });
+}
 
 /** Delete a tenant's whole catalog (menu, prices, availability), children first. Used by tenant purge and the demo menu reset. */
 export async function deleteCatalog(tx: PurgeTx, tenantId: string): Promise<void> {
