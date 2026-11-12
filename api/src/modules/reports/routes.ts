@@ -34,7 +34,7 @@ const userNames = async (ids: (string | null | undefined)[]) => {
 interface SoldRow { key: string; name: string; kind: "item" | "combo"; qty: number; revenueMinor: number; costMinor: number; hasRecipe: boolean }
 
 /** Every item sold in the period with its net revenue and, where a recipe exists, its ingredient cost. */
-async function soldItems(q: ReportQuery) {
+export async function soldItems(q: ReportQuery) {
   const { currency, locationIds } = await scopeOf(q);
   if (locationIds.length === 0) return { currency, rows: [] as SoldRow[], byDay: new Map<string, { salesMinor: number; costMinor: number }>() };
   const [lines, unitCost] = await Promise.all([

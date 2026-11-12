@@ -192,6 +192,29 @@ describe("platform console", () => {
     await purgePlatformUser(add.body.data.id);
   });
 
+  it("edits a team member: name, email and password; a new password signs them out; duplicate emails are refused", async () => {
+    const tag = randomBytes(3).toString("hex");
+    const email = `edit${tag}@restoflux.test`;
+    const add = await asPlatform(token).post("/admins", { name: "Before", email, password: "Hire-Passw0rd-12345" });
+    const id = add.body.data.id;
+    const member = await platformLogin(email, "Hire-Passw0rd-12345");
+
+    const renamed = await asPlatform(token).patch(`/admins/${id}`, { name: "After", email: `moved${tag}@restoflux.test` });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.data).toMatchObject({ name: "After", email: `moved${tag}@restoflux.test` });
+    expect((await asPlatform(token).patch(`/admins/${id}`, { email: admin.email })).status).toBe(422); // already taken
+    expect((await asPlatform(token).patch(`/admins/${id}`, {})).status).toBe(422); // nothing to change
+    expect((await asPlatform(token).patch(`/admins/${id}`, { password: "short" })).status).toBe(422);
+
+    expect((await asPlatform(token).patch(`/admins/${id}`, { password: "New-Passw0rd-12345" })).status).toBe(200);
+    expect((await asPlatform(member.body.data.accessToken).get("/organizations")).status).toBe(401); // signed out everywhere
+    expect((await platformLogin(`moved${tag}@restoflux.test`, "Hire-Passw0rd-12345")).status).toBe(401);
+    expect((await platformLogin(`moved${tag}@restoflux.test`, "New-Passw0rd-12345")).status).toBe(200);
+    // you may rename yourself, but not disable yourself
+    expect((await asPlatform(token).patch(`/admins/${admin.id}`, { name: "Team Member" })).status).toBe(200);
+    await purgePlatformUser(id);
+  });
+
   it("serves the platform audit log and the summary", async () => {
     const log = await asPlatform(token).get(`/audit-logs?tenantId=${tenantA.tenantId}`);
     expect(log.status).toBe(200);

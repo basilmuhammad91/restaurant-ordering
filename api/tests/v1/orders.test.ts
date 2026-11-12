@@ -165,7 +165,7 @@ describe("tax that is already inside the price (UAE VAT 5%)", () => {
     const inside = (g: number) => g - Math.floor((g * 10_000 * 2 + 10_500) / 21_000);
     expect(o.taxMinor).toBe(inside(4_100) + inside(2_000));
     expect(o.lines[0].taxes[0]).toMatchObject({ authorityCode: "FTA", isInclusive: true, baseMinor: 4_100 - inside(4_100) });
-    expect(o.orderNumber).toMatch(/^DX-0001$/);
+    expect(o.orderNumber).toMatch(/^DX-\d{4}$/); // numbered per branch and trading day; the restart rule has its own test below
   });
 });
 

@@ -1,12 +1,10 @@
 import type { PermissionKey } from "@restoflux/contracts";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CheckCircle2, ChevronRight, Circle, ClipboardCheck, Users, Warehouse } from "lucide-react";
-import type { ReactNode } from "react";
+import { CheckCircle2, ChevronRight, Circle } from "lucide-react";
 import { Link } from "react-router";
 import { PageHeader } from "@/components/page/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { SalesPanel } from "./SalesPanel";
 import { api, type Paged } from "@/lib/api";
 import { useAuth, useMe } from "@/lib/auth";
@@ -20,21 +18,6 @@ function useCount(path: string, enabled: boolean, params: Record<string, string>
     queryFn: async () => (await api.get<Paged<unknown>>(path, { pageSize: 1, ...params })).meta.total,
     enabled,
   });
-}
-
-function Stat({ label, value, icon, to, loading }: { label: string; value: ReactNode; icon: ReactNode; to?: string; loading?: boolean }) {
-  const body = (
-    <Card className="transition-colors hover:border-primary/40">
-      <CardContent className="flex items-center gap-4 p-5">
-        <div className="grid size-11 place-items-center rounded-lg bg-primary/10 text-primary">{icon}</div>
-        <div>
-          <div className="text-2xl font-bold leading-none">{loading ? <Skeleton className="h-7 w-10" /> : value}</div>
-          <div className="mt-1 text-sm text-muted-foreground">{label}</div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-  return to ? <Link to={to}>{body}</Link> : body;
 }
 
 function Step({ done, title, hint, to, can }: { done: boolean; title: string; hint: string; to: string; can: boolean }) {
@@ -60,7 +43,6 @@ export default function DashboardPage() {
   const taxes = useCount("/tax-profiles", org);
   const methods = useCount("/payment-methods", org);
   const users = useCount("/users", can("users.view"));
-  const approvals = useCount("/approvals", can("approvals.view"), { status: "PENDING" });
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -68,20 +50,13 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader title={`${greeting}, ${me.user.name.split(" ")[0]}`} description={`${me.tenant.name} · ${me.allLocations ? "all branches" : `${me.locations.length} branch${me.locations.length === 1 ? "" : "es"}`}`} />
+      <PageHeader title={`${greeting}, ${me.user.name.split(" ")[0]}`} description={`${me.tenant.name} · ${me.allLocations ? "all branches" : `${me.locations.length} branch${me.locations.length === 1 ? "" : "es"}`}${brands.data ? ` · ${brands.data} brand${brands.data === 1 ? "" : "s"}` : ""}${users.data ? ` · ${users.data} team members` : ""}`} />
 
       {can("dashboard.view") && <SalesPanel />}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Brands" value={brands.data ?? "-"} icon={<Building2 />} to="/org/brands" loading={org && brands.isPending} />
-        <Stat label="Branches" value={branches.data ?? "-"} icon={<Warehouse />} to="/org/locations" loading={org && branches.isPending} />
-        <Stat label="Team members" value={users.data ?? "-"} icon={<Users />} to="/settings/users" loading={can("users.view") && users.isPending} />
-        <Stat label="Waiting for approval" value={approvals.data ?? "-"} icon={<ClipboardCheck />} to="/approvals" loading={can("approvals.view") && approvals.isPending} />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-5">
-        {org && (
-          <Card className="lg:col-span-5">
+      <div className="grid gap-3">
+        {org && !setupDone && !brands.isPending && (
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">Set up your company {setupDone && <Badge className="bg-emerald-600">Done</Badge>}</CardTitle>
               <CardDescription>The foundations every branch needs before it can take orders.</CardDescription>

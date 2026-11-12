@@ -120,3 +120,31 @@ describe("fraud watch", () => {
     expect((await w.as.cashier.get(`/reports/fraud?${range()}`)).status).toBe(403);
   });
 });
+
+describe("dashboard insights", () => {
+  it("compares with the previous period, shows the busiest hours, best sellers and what needs attention", async () => {
+    const r = (await owner.get(`/dashboard/insights?${range()}`)).body.data;
+    expect(r.currencyCode).toBe("PKR");
+    expect(r.compare).toMatchObject({ orders: 3, previousOrders: 0, previousNetSalesMinor: 0 }); // two completed orders plus the one from the fraud test; nothing before
+    expect(r.hours).toHaveLength(24);
+    expect(r.hours.reduce((s: number, h: any) => s + h.orders, 0)).toBe(3);
+    expect(r.topItems[0]).toMatchObject({ qty: 6, revenueMinor: 180_000 }); // the fraud test order still has its fries (the burger line was voided)
+    expect(r.recentOrders).toHaveLength(3);
+    expect(r.alerts).toMatchObject({ openShifts: 0, deliveriesWaiting: 0, approvals: 0 });
+    expect(typeof r.alerts.lowStock).toBe("number");
+    expect(r.branches).toEqual([expect.objectContaining({ orders: 3 })]);
+    expect(r.weekdays.reduce((t: number, d: any) => t + d.orders, 0)).toBe(3);
+    expect(r.categories[0].revenueMinor).toBe(180_000);
+    expect(r.foodCost).toEqual({ pct: 0.3, coveragePct: 100 }); // 600 of cost on 180,000 of sales
+    expect(r.ops.stockValueMinor).toBeGreaterThan(0);
+    expect(r.ops.owedMinor).toBe(6_000); // the invoice from the purchasing test, part paid
+    expect(r.ops.customers).toMatchObject({ total: expect.any(Number) });
+    // a cashier sees counts of what they can act on, never the money
+    const cashier = (await w.as.cashier.get(`/dashboard/insights?${range()}`)).body.data;
+    expect(cashier.compare).toBeUndefined();
+    expect(cashier.topItems).toBeUndefined();
+    expect(cashier.alerts.approvals).toBeUndefined(); // no approvals.view
+    expect(cashier.branches).toBeUndefined();
+    expect(cashier.ops.stockValueMinor).toBeUndefined();
+  });
+});

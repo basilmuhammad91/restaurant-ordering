@@ -55,6 +55,14 @@ export const platformUserCreateSchema = z.object({
   password: passwordSchema,
 });
 
+/** Change a team member: name, email, a new password, or their status. Anything left out stays as it is. */
+export const platformUserUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  email: z.email().transform((e) => e.toLowerCase()).optional(),
+  password: passwordSchema.optional(),
+  status: z.enum(["ACTIVE", "DISABLED"]).optional(),
+}).refine((v) => Object.values(v).some((x) => x !== undefined), { message: "Nothing to change" });
+
 export interface PlatformMe {
   id: string;
   name: string;

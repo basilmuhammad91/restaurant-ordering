@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import {
   loginInputSchema, organizationCreateSchema, organizationListQuerySchema, organizationStatusSchema,
-  organizationUpdateSchema, platformUserCreateSchema, cursorQuerySchema, idSchema, passwordSchema,
+  organizationUpdateSchema, platformUserCreateSchema, platformUserUpdateSchema, cursorQuerySchema, idSchema, passwordSchema,
   type OrganizationRow, type PlatformMe,
 } from "@restoflux/contracts";
 import type { Prisma } from "../../generated/prisma/client.js";
@@ -267,13 +267,23 @@ platformTeam.post("/", "platform", async (req, res) => {
 
 platformTeam.patch("/:id", "platform", async (req, res) => {
   const id = idSchema.parse(req.params.id);
-  const { status } = z.object({ status: z.enum(["ACTIVE", "DISABLED"]) }).parse(req.body);
-  if (id === req.platformUser!.id) throw conflict("You cannot change your own status");
+  const input = platformUserUpdateSchema.parse(req.body);
+  const self = id === req.platformUser!.id;
+  if (self && input.status) throw conflict("You cannot change your own status");
   const existing = await unscopedDb.platformUser.findUnique({ where: { id } });
   if (!existing) throw notFound("Team member");
-  const updated = await unscopedDb.platformUser.update({ where: { id }, data: { status }, select: adminSelect });
-  if (status === "DISABLED") await revokePlatformUserSessions(id);
-  await recordPlatformAudit(req, { action: `platform.admin.${status.toLowerCase()}`, entityType: "PlatformUser", entityId: id, before: { status: existing.status }, after: { status } });
+  if (input.email && input.email !== existing.email && (await unscopedDb.platformUser.findUnique({ where: { email: input.email } }))) throw fieldError("email", "This email is already registered");
+  const updated = await unscopedDb.platformUser.update({
+    where: { id },
+    data: { ...(input.name && { name: input.name }), ...(input.email && { email: input.email }), ...(input.status && { status: input.status }), ...(input.password && { passwordHash: await hashPassword(input.password) }) },
+    select: adminSelect,
+  });
+  // someone else disabled, or given a new password, is signed out everywhere (changing your own password keeps you signed in here)
+  if (input.status === "DISABLED" || (input.password && !self)) await revokePlatformUserSessions(id);
+  await recordPlatformAudit(req, {
+    action: input.status ? `platform.admin.${input.status.toLowerCase()}` : "platform.admin.update", entityType: "PlatformUser", entityId: id,
+    before: { name: existing.name, email: existing.email, status: existing.status }, after: { name: updated.name, email: updated.email, status: updated.status, passwordChanged: Boolean(input.password) },
+  });
   res.json({ data: updated });
 });
 

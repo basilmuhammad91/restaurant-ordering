@@ -8,6 +8,7 @@ import { categories, modifierGroupsRouter, productsRouter } from "./modules/cata
 import { pricesRouter } from "./modules/catalog/prices.js";
 import { inventoryItemsRouter, productionRouter, recipesRouter, stockCountsRouter, stockRouter, stockTransfersRouter } from "./modules/inventory/routes.js";
 import { goodsReceiptsRouter, purchaseOrdersRouter, suggestedOrdersRouter, supplierInvoicesRouter, supplierItemsRouter, suppliersRouter } from "./modules/purchasing/routes.js";
+import { dashboardInsightsRouter } from "./modules/reports/dashboard.js";
 import { reportsExtraRouter } from "./modules/reports/routes.js";
 import { couponsRouter, customerProfileRouter, customersRouter, feedbackRouter, loyaltyRouter, offersRouter, promotionsRouter } from "./modules/customers/routes.js";
 import { deliveriesRouter, deliveryZonesRouter, employeesRouter, ridersRouter, rosterRouter, settingsRouter, timeclockRouter } from "./modules/operations/routes.js";
@@ -62,6 +63,7 @@ v1Router.use("/z-reports", zReportsRouter);
 v1Router.use("/reports", reportsRouter);
 v1Router.use("/reports", reportsExtraRouter);
 v1Router.use("/dashboard", dashboardRouter);
+v1Router.use("/dashboard", dashboardInsightsRouter);
 v1Router.use("/inventory-items", inventoryItemsRouter);
 v1Router.use("/inventory", stockRouter);
 v1Router.use("/recipes", recipesRouter);

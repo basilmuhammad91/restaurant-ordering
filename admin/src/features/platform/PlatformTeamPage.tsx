@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { platformUserCreateSchema } from "@restoflux/contracts";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { z } from "zod";
 import { toast } from "sonner";
 import { fmtDateTime, titleCase } from "@/components/cells";
 import { PageHeader } from "@/components/page/PageHeader";
@@ -26,11 +27,13 @@ interface Member {
 }
 
 type Form = { name: string; email: string; password: string };
+type EditForm = { name: string; email: string; password: string };
 
 export default function PlatformTeamPage() {
   const { me } = usePlatformAuth();
   const invalidate = usePlatformInvalidate();
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<Member | null>(null);
   const team = useQuery({ queryKey: ["/platform/admins"], queryFn: async () => (await platformApi.get<{ data: Member[] }>("/admins")).data });
   const { register, handleSubmit, reset, setError, formState: { errors } } = useForm<Form>({ resolver: zodResolver(platformUserCreateSchema as never), defaultValues: { name: "", email: "", password: "" } });
 
@@ -39,6 +42,16 @@ export default function PlatformTeamPage() {
     onSuccess: async () => { toast.success("Team member added"); setAdding(false); reset(); await invalidate("/admins"); },
     onError: (e) => {
       if (e instanceof ApiError && e.status === 422) for (const [f, m] of Object.entries(e.fieldErrors)) setError(f as keyof Form, { message: m[0] });
+      else toast.error(errorMessage(e));
+    },
+  });
+  const editForm = useForm<EditForm>({ resolver: zodResolver(z.object({ name: platformUserCreateSchema.shape.name, email: platformUserCreateSchema.shape.email, password: platformUserCreateSchema.shape.password.or(z.literal("")) }) as never), defaultValues: { name: "", email: "", password: "" } });
+  const startEdit = (m: Member) => { editForm.reset({ name: m.name, email: m.email, password: "" }); setEditing(m); };
+  const save = useMutation({
+    mutationFn: (v: EditForm) => platformApi.patch(`/admins/${editing!.id}`, { name: v.name, email: v.email, ...(v.password ? { password: v.password } : {}) }),
+    onSuccess: async () => { toast.success(editing && editForm.getValues("password") ? "Saved. They were signed out and must use the new password." : "Team member updated"); setEditing(null); await invalidate("/admins"); },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 422) for (const [k, m] of Object.entries(e.fieldErrors)) editForm.setError(k as keyof EditForm, { message: m[0] });
       else toast.error(errorMessage(e));
     },
   });
@@ -60,14 +73,15 @@ export default function PlatformTeamPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border bg-card">
           <Table>
-            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead>Last sign-in</TableHead><TableHead className="w-32" /></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead>Last sign-in</TableHead><TableHead className="w-48" /></TableRow></TableHeader>
             <TableBody>
               {team.data.map((m) => (
                 <TableRow key={m.id}>
                   <TableCell><div className="font-medium">{m.name}{m.id === me?.id && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}</div><div className="text-xs text-muted-foreground">{m.email}</div></TableCell>
                   <TableCell><Badge variant="secondary" className={m.status === "ACTIVE" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}>{titleCase(m.status)}</Badge></TableCell>
                   <TableCell className="text-muted-foreground">{m.lastLoginAt ? fmtDateTime(m.lastLoginAt) : "Never"}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="space-x-2 text-right">
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(m)}><Pencil /> Edit</Button>
                     {m.id !== me?.id && (
                       <Button size="sm" variant="outline" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: m.id, status: m.status === "ACTIVE" ? "DISABLED" : "ACTIVE" })}>
                         {m.status === "ACTIVE" ? "Disable" : "Enable"}
@@ -80,6 +94,18 @@ export default function PlatformTeamPage() {
           </Table>
         </div>
       )}
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit team member</DialogTitle><DialogDescription>Change their name or email. Fill in a new password only to replace theirs: they are signed out everywhere and must use it.</DialogDescription></DialogHeader>
+          <form onSubmit={editForm.handleSubmit((v) => save.mutate(v))} className="space-y-4" noValidate>
+            <div className="space-y-1.5"><Label htmlFor="e-name">Name</Label><Input id="e-name" {...editForm.register("name")} />{editForm.formState.errors.name && <p className="text-xs text-destructive">{String(editForm.formState.errors.name.message)}</p>}</div>
+            <div className="space-y-1.5"><Label htmlFor="e-email">Email</Label><Input id="e-email" type="email" {...editForm.register("email")} />{editForm.formState.errors.email && <p className="text-xs text-destructive">{String(editForm.formState.errors.email.message)}</p>}</div>
+            <div className="space-y-1.5"><Label htmlFor="e-pw">New password (optional)</Label><Input id="e-pw" type="password" autoComplete="new-password" placeholder="Leave empty to keep the current one" {...editForm.register("password")} />{editForm.formState.errors.password && <p className="text-xs text-destructive">{String(editForm.formState.errors.password.message)}</p>}</div>
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save changes"}</Button></DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={adding} onOpenChange={setAdding}>
         <DialogContent>
