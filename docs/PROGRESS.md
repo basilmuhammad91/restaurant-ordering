@@ -17,7 +17,7 @@
 | 1 | Tenancy, organization, users, roles and permissions, audit, admin app shell | **Done, awaiting review** (2026-11-09) |
 | **1B** | Platform layer: Restoflux super-admin console, organization management, per-organization theme | **Built, tests running** (2026-11-09) |
 | **2a** | Catalog core: categories, products and sizes, modifiers, combos, menus and dayparts, prices, branch availability (86), demo menu, admin Menu screens | **Built, final test run in progress** (2026-11-10) |
-| 2b | Move the legacy menu into the new catalog, rebuild a thin storefront on it, remove the old admin pages from `web/` | Not started |
+| 2b | Rebuild a thin, tenant-aware storefront on the new menu (`catalog/sellable`). **`web/` was removed on 2026-11-13**; remove the legacy API routes and tables next | Not started |
 | **3** | Orders, POS, kitchen display, payments, shifts and cash drawer, Z-reports, dashboard sales | **Built, final test run in progress** (2026-11-10). Deferred: legacy storefront migration (2b), customers (7), service charge |
 | **4** | Inventory: items, stock on hand, recipes, counts, adjustments and waste, transfers, production, automatic deduction on completed orders | **Built, API tests green** (2026-11-12) |
 | **5** | Purchasing: suppliers and their packs and prices, purchase orders, receiving, supplier invoices and payments, suggested orders | **Built, API tests green** (2026-11-12) |
@@ -175,7 +175,7 @@ Every item in the sidebar is now a real screen: the navigation has no "Soon" mar
 
 ## Next steps
 1. **You:** review Phases 1 to 8 on the demo organization: `npm run seed:demo-ops -w api` adds sample inventory, recipes, suppliers, customers, offers, delivery and staff data to the demo tenant.
-2. **Open:** Phase 2b (move the legacy menu into the new catalog, rebuild a thin storefront on `catalog/sellable`, remove the old admin pages from `web/`).
+2. **Open:** Phase 2b: rebuild a thin, tenant-aware storefront on `catalog/sellable` (new app; the old `web/` is gone), then remove the legacy API routes (`api/src/legacy`, `api/tests/legacy`) and the legacy tables with a migration (check first whether the old data matters).
 3. **Open:** image uploads (R2), server push for live screens, self-service sign-up and billing, support impersonation, and the limitations listed above.
 
 ## Change log
@@ -187,4 +187,5 @@ Every item in the sidebar is now a real screen: the navigation has no "Soon" mar
 | 2026-11-10 | Phase 2a built: catalog schema, price resolution, menus and dayparts, 86, sellable menu API, admin Menu screens, demo menu. |
 | 2026-11-10 | Phase 3 built: order engine and money maths, POS, live orders, kitchen display, order history, shifts and cash, Z-reports, dashboard sales, demo orders. |
 | 2026-11-12 | POS menu restyled (skeleton loader, quiet cards); dashboard opens on the organization's currency. |
+| 2026-11-13 | Removed the old `web/` storefront (the README was rewritten for the SaaS; logos moved to `docs/brand/`; brand source of truth is `packages/contracts/src/brand.ts`). |
 | 2026-11-12 | Phases 4 to 8 built: inventory and recipes, purchasing, reports, customers and marketing (coupons, promotions, loyalty, feedback), delivery, staff, receipt template, notification settings. Every sidebar item is now a real screen. |

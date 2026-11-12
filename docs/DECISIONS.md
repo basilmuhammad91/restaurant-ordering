@@ -131,3 +131,7 @@
 | 2026-11-09 | all | Accepted as written. |
 | 2026-11-09 | D9 | The workspace root contains `api`, `admin` and `packages/*` in Phase 1. **`web/` stays a standalone package until Phase 2** (it does not consume `packages/contracts` yet, and the owner's storefront dev server was running, so its dependencies must not be reinstalled underneath it). |
 | 2026-11-09 | D10 | Phase 1 keeps the legacy routes (`/api/...`) and their old error format untouched, so the storefront needs **no changes in Phase 1**. The new envelope is used only under `/api/v1`. |
+
+## Amendments
+
+- **D9 amended (2026-11-13): the old `web/` app was removed.** It was the single-restaurant storefront and admin from before the SaaS rebuild; it ran on the legacy tables and never saw the new menu, stock, offers or delivery zones, and orders placed there did not reach the POS, kitchen or reports. The workspaces are now `api`, `admin` and `packages/contracts`. A new, tenant-aware storefront (each organization or brand on its own address, reading the same sellable-menu calculation as the POS) will be built as a new app in Phase 2b. The old code stays in git history (last present at commit `95b32f6`). The legacy API routes (`api/src/legacy`) and legacy tables are still in place and are the next things to remove.

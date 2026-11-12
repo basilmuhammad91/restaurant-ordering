@@ -1,4 +1,4 @@
-# dependencies, builds, env files (covers api/ and web/)
+# dependencies, builds, env files
 node_modules/
 dist/
 .env
@@ -12,4 +12,3 @@ dist/
 api/src/generated/
 
 api/.env
-web/.env

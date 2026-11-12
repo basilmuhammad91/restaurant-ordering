@@ -1,5 +1,5 @@
-// The product's name, colour and logo mark, shared by the admin app (and, from Phase 2, the storefront).
-// Keep in sync with web/src/brand.ts until the storefront joins the workspace and imports this instead.
+// The product's name, colour and logo mark: the ONE place to rename or restyle the product.
+// Shared by the admin app (and, later, the storefront). Static logo copies are in docs/brand/.
 export const BRAND = {
   name: "Restoflux",
   lead: "Resto", // wordmark is "Resto" + "flux", with the second part in the accent colour
