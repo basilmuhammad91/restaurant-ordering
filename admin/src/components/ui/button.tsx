@@ -2,6 +2,7 @@ import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 import { Slot } from "radix-ui"
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip"
 
 const buttonVariants = cva(
   "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -49,7 +50,7 @@ function Button({
   }) {
   const Comp = asChild ? Slot.Root : "button"
 
-  return (
+  const button = (
     <Comp
       data-slot="button"
       data-variant={variant}
@@ -58,6 +59,19 @@ function Button({
       {...props}
     />
   )
+
+  // An icon-only button has no visible words, so its label (already there for screen readers) shows on hover as a tooltip.
+  const label = props["aria-label"]
+  const iconOnly = typeof size === "string" && size.startsWith("icon")
+  if (!asChild && iconOnly && label && !props.title) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent side="top" sideOffset={4}>{label}</TooltipContent>
+      </Tooltip>
+    )
+  }
+  return button
 }
 
 export { Button, buttonVariants }

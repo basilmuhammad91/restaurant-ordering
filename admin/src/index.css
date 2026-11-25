@@ -135,7 +135,9 @@
   [role="option"],
   [role="switch"],
   [role="checkbox"],
-  [role="radio"] {
+  [role="radio"],
+  [cmdk-item]:not([data-disabled="true"]),
+  label:has(input[type="checkbox"], input[type="radio"], [role="switch"], [role="checkbox"], [role="radio"]) {
     cursor: pointer;
   }
   button:disabled,
