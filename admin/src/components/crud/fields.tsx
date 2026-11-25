@@ -1,4 +1,5 @@
-import { Controller, type Control, type FieldErrors, type UseFormRegister } from "react-hook-form";
+import { Controller, useWatch, type Control, type FieldErrors, type UseFormRegister } from "react-hook-form";
+import { ImagePreview } from "@/components/ImagePreview";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,9 @@ export interface FieldOption {
 export interface FieldDef {
   name: string;
   label: string;
-  type: "text" | "number" | "textarea" | "switch" | "select" | "multicheck" | "password" | "email" | "date";
+  type: "text" | "number" | "textarea" | "switch" | "select" | "multicheck" | "password" | "email" | "date" | "image";
+  /** For type "image": a logo is shown whole, a photo is cropped as on the till (default). */
+  previewFit?: "photo" | "logo";
   options?: FieldOption[];
   placeholder?: string;
   hint?: string;
@@ -67,6 +70,13 @@ export function FieldControl({
   );
 
   switch (field.type) {
+    case "image":
+      return wrap(
+        <>
+          <Input id={id} type="text" inputMode="url" placeholder={field.placeholder} disabled={disabled} autoComplete="off" aria-invalid={!!error} {...register(field.name)} />
+          <WatchedPreview control={control} name={field.name} fit={field.previewFit} />
+        </>,
+      );
     case "textarea":
       return wrap(<Textarea id={id} rows={3} placeholder={field.placeholder} disabled={disabled} aria-invalid={!!error} {...register(field.name)} />);
     case "number":
@@ -135,4 +145,10 @@ export function FieldControl({
         <Input id={id} type={field.type === "text" ? "text" : field.type} placeholder={field.placeholder} disabled={disabled} autoComplete={field.type === "password" ? "new-password" : "off"} aria-invalid={!!error} {...register(field.name)} />,
       );
   }
+}
+
+/** The preview follows what is in the box, including what was loaded when editing. */
+function WatchedPreview({ control, name, fit }: { control: Control<any>; name: string; fit?: "photo" | "logo" }) {
+  const url = useWatch({ control, name }) as string | null | undefined;
+  return <ImagePreview url={url} fit={fit} />;
 }

@@ -31,7 +31,7 @@ export default function CategoriesPage() {
       { name: "brandId", label: "Brand", type: "select", required: true, options: (brands.data ?? []).map((b) => ({ value: b.id, label: b.name })), disabledWhen: (editing) => editing, hint: "A category belongs to one brand." },
       { name: "name", label: "Category name", type: "text", required: true, placeholder: "Burgers" },
       { name: "sortOrder", label: "Display order", type: "number", span: 1, min: 0, hint: "Lower numbers show first on the POS and website." },
-      { name: "imageUrl", label: "Image URL", type: "text", nullable: true, span: 1, placeholder: "https://…" },
+      { name: "imageUrl", label: "Image URL", type: "image", nullable: true, span: 1, placeholder: "https://…" },
       { name: "isActive", label: "Active", type: "switch" },
     ],
     [brands.data],

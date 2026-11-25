@@ -79,6 +79,7 @@ npm run bootstrap:default-tenant -w api      # one-off: creates the default tena
 npm run seed:demo -w api                     # demo organization, one user per role; prints random passwords ONCE
 npm run seed:demo-orders -w api              # ten days of demo orders, shifts and Z-reports
 npm run seed:demo-ops -w api                 # sample inventory, recipes, suppliers, customers, offers, delivery, staff, feedback (add -- --reset to rebuild)
+npm run seed:demo-images -w api              # real photos (Wikimedia links) on demo products, categories and deals; --clear removes them
 npm run create-platform-admin -w api -- --email you@restoflux.com --name "Your Name"
 npm run dev                                  # API on :4000 and admin app on :5174, together
 ```

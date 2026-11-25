@@ -37,7 +37,7 @@ const fields: FieldDef[] = [
   { name: "slug", label: "Slug", type: "text", required: true, hint: "Used in the customer ordering site address. Lowercase letters, numbers and dashes." },
   { name: "cuisine", label: "Cuisine", type: "text", nullable: true, span: 1, placeholder: "Burgers, Pakistani grill ..." },
   { name: "primaryColor", label: "Brand colour", type: "text", nullable: true, span: 1, placeholder: "#a3141c" },
-  { name: "logoUrl", label: "Logo URL", type: "text", nullable: true, placeholder: "https://..." },
+  { name: "logoUrl", label: "Logo URL", type: "image", previewFit: "logo", nullable: true, placeholder: "https://..." },
   { name: "isActive", label: "Active", type: "switch" },
 ];
 

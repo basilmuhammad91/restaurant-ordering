@@ -23,6 +23,8 @@ import { formatMinor, useCurrencies } from "@/lib/money";
 import { useAll, useInvalidate, useList } from "@/lib/queries";
 import { useScope } from "@/lib/scope";
 import { Field, PriceEditor, SimpleSelect, useBrands, useDefaultBrandId } from "./shared";
+import { textOrNull } from "./text";
+import { ImagePreview } from "@/components/ImagePreview";
 
 interface SlotOption { id: string; variantId: string; isDefault: boolean; variant: { id: string; name: string; product: { id: string; name: string } } }
 interface Slot { id: string; name: string; quantity: number; options: SlotOption[] }
@@ -43,10 +45,15 @@ const toForm = (c: Combo): FormValues => ({
   startsAt: toLocalInput(c.startsAt), endsAt: toLocalInput(c.endsAt),
   slots: c.slots.map((s) => ({ id: s.id, name: s.name, quantity: s.quantity, options: s.options.map((o) => ({ id: o.id, variantId: o.variantId, isDefault: o.isDefault })) })),
 });
-const clean = (v: FormValues) => ({
-  ...v, description: v.description.trim() || null, imageUrl: v.imageUrl.trim() || null, taxCategoryId: v.taxCategoryId || null,
+// Runs twice on a save (validator, then submit), so it must accept already-cleaned values: see ProductsPage.
+export const clean = (v: FormValues) => ({
+  ...v, description: textOrNull(v.description), imageUrl: textOrNull(v.imageUrl), taxCategoryId: v.taxCategoryId || null,
   startsAt: v.startsAt ? new Date(v.startsAt).toISOString() : null, endsAt: v.endsAt ? new Date(v.endsAt).toISOString() : null,
 });
+
+function WatchedImage({ control }: { control: Control<FormValues> }) {
+  return <ImagePreview url={useWatch({ control, name: "imageUrl" })} />;
+}
 
 function SlotEditor({ index, control, register, remove, canRemove, variantOptions, onChangeDefault }: {
   index: number; control: Control<FormValues>; register: UseFormRegister<FormValues>; remove: () => void; canRemove: boolean;
@@ -116,7 +123,7 @@ function ComboSheet({ combo, onClose }: { combo: Combo | "new"; onClose: () => v
             <Field label="Brand" error={err("brandId")}><SimpleSelect value={brandId} onChange={(v) => setValue("brandId", v)} options={(brands.data ?? []).map((b) => ({ value: b.id, label: b.name }))} disabled={!isNew} placeholder="Choose a brand" label="Brand" /></Field>
             <Field label="Name" error={err("name")}><Input {...register("name")} aria-label="Name" /></Field>
             <Field label="Description" className="sm:col-span-2"><Textarea rows={2} {...register("description")} aria-label="Description" /></Field>
-            <Field label="Image URL" error={err("imageUrl")}><Input placeholder="https://…" {...register("imageUrl")} aria-label="Image URL" /></Field>
+            <Field label="Image URL" error={err("imageUrl")}><Input placeholder="https://…" {...register("imageUrl")} aria-label="Image URL" /><WatchedImage control={control} /></Field>
             <Field label="Tax category" error={err("taxCategoryId")}><Controller control={control} name="taxCategoryId" render={({ field }) => <SimpleSelect allowEmpty value={field.value} onChange={field.onChange} options={(taxCategories.data ?? []).map((t) => ({ value: t.id, label: t.name }))} placeholder="Default" label="Tax category" />} /></Field>
             <Field label="Starts (optional)" hint="Leave both empty to run all the time."><Input type="datetime-local" {...register("startsAt")} aria-label="Starts" /></Field>
             <Field label="Ends (optional)" error={err("endsAt")}><Input type="datetime-local" {...register("endsAt")} aria-label="Ends" /></Field>

@@ -23,6 +23,8 @@ import { formatMinor, useCurrencies } from "@/lib/money";
 import { useAll, useInvalidate, useList } from "@/lib/queries";
 import { useScope } from "@/lib/scope";
 import { ChipPicker, Field, ItemPicker, PriceEditor, SimpleSelect, useBrands, useDefaultBrandId } from "./shared";
+import { textOrNull } from "./text";
+import { ImagePreview } from "@/components/ImagePreview";
 
 interface Variant { id: string; name: string; sku: string | null; isDefault: boolean; sortOrder: number }
 interface Product {
@@ -51,12 +53,16 @@ const toForm = (p: Product): FormValues => ({
   modifierGroups: p.modifiers.map((m, i) => ({ modifierGroupId: m.modifierGroupId, sortOrder: i })),
 });
 
-/** Empty text boxes mean "no value", which the API wants as null. */
-const clean = (v: FormValues) => ({
+/**
+ * Empty text boxes mean "no value", which the API wants as null. This runs TWICE on a save: in the validator,
+ * whose output react-hook-form hands to the submit handler, and again before sending. So it must also accept
+ * values it has already cleaned (nulls), or saving any product with an empty box crashes.
+ */
+export const clean = (v: FormValues) => ({
   ...v,
-  description: v.description.trim() || null, imageUrl: v.imageUrl.trim() || null, sku: v.sku.trim() || null,
-  taxCategoryId: v.taxCategoryId || null, stationKey: v.stationKey.trim() || null,
-  variants: v.variants.map((x) => ({ ...x, sku: x.sku.trim() || null })),
+  description: textOrNull(v.description), imageUrl: textOrNull(v.imageUrl), sku: textOrNull(v.sku),
+  taxCategoryId: v.taxCategoryId || null, stationKey: textOrNull(v.stationKey),
+  variants: v.variants.map((x) => ({ ...x, sku: textOrNull(x.sku) })),
 });
 const resolver: Resolver<FormValues> = ((values: FormValues, ctx: unknown, opts: unknown) => (zodResolver(productInputSchema as never) as never as (v: unknown, c: unknown, o: unknown) => unknown)(clean(values), ctx, opts)) as never;
 
@@ -151,7 +157,7 @@ function ProductSheet({ product, onClose, onSaved }: { product: Product | "new";
             </Field>
             <Field label="Name" error={err("name")} className="sm:col-span-2"><Input {...register("name")} aria-label="Name" aria-invalid={!!errors.name} /></Field>
             <Field label="Description" error={err("description")} className="sm:col-span-2"><Textarea rows={2} {...register("description")} aria-label="Description" /></Field>
-            <Field label="Image URL" error={err("imageUrl")} hint="A link to the photo shown on the POS and website."><Input placeholder="https://…" {...register("imageUrl")} aria-label="Image URL" /></Field>
+            <Field label="Image URL" error={err("imageUrl")} hint="A link to the photo shown on the POS and website."><Input placeholder="https://…" {...register("imageUrl")} aria-label="Image URL" /><ImagePreview url={watch("imageUrl")} /></Field>
             <Field label="SKU" error={err("sku")}><Input {...register("sku")} aria-label="SKU" /></Field>
           </div>
 
