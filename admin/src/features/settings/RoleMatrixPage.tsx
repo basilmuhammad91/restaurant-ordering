@@ -114,6 +114,10 @@ export default function RoleMatrixPage() {
     });
 
   const unusedCurrencies = currencies.filter((c) => !limits.some((l) => l.currencyCode === c.code));
+  // how many boxes differ from what is saved: drives the "unsaved changes" note and the Save button
+  const saved = new Set(r.permissions);
+  const changes = [...selected].filter((k) => !saved.has(k)).length + r.permissions.filter((k) => !selected.has(k)).length;
+  const dirty = changes > 0;
 
   return (
     <>
@@ -172,9 +176,12 @@ export default function RoleMatrixPage() {
             );
           })}
           <Can permission="roles.manage">
-            <div className="flex items-center gap-3">
-              <Button onClick={() => savePerms.mutate()} disabled={readOnly || savePerms.isPending}>{savePerms.isPending ? "Saving…" : "Save permissions"}</Button>
+            {/* Pinned to the bottom of the screen while the long list scrolls, so saving never needs a trip to the end of the page. */}
+            <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex flex-wrap items-center gap-3 rounded-b-xl border-t bg-card/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+              <Button onClick={() => savePerms.mutate()} disabled={readOnly || savePerms.isPending || !dirty}>{savePerms.isPending ? "Saving…" : "Save permissions"}</Button>
+              {dirty && !readOnly && <Button variant="ghost" onClick={() => setSelected(new Set(r.permissions))} disabled={savePerms.isPending}>Discard changes</Button>}
               <span className="text-sm text-muted-foreground">{selected.size} of {totalPermissions} selected</span>
+              {dirty && <span className="text-sm font-medium text-amber-700 dark:text-amber-400" role="status">{changes} unsaved change{changes === 1 ? "" : "s"}</span>}
             </div>
           </Can>
         </CardContent>
