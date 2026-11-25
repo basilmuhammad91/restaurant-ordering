@@ -25,5 +25,8 @@ const adapter = new PrismaPg({
 export const unscopedDb = new PrismaClient({
   adapter,
   // Interactive transactions default to 5 s, which a remote database (Neon) can exceed with a few sequential queries.
-  transactionOptions: { timeout: 20_000, maxWait: 10_000 },
+  // Completing an order is the heaviest one (status, stock for every ingredient, coupons, customer, loyalty, audit):
+  // measured at 25 s from a laptop to Neon, over the old 20 s limit, which rolled the whole order back with a 500.
+  // 60 s is a ceiling, not a target: a transaction that long still holds row locks, so keep trimming queries too.
+  transactionOptions: { timeout: 60_000, maxWait: 15_000 },
 });

@@ -2,7 +2,7 @@ import { businessDateOf } from "@restoflux/contracts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../src/app.js";
 import { unscopedDb } from "../../src/core/db/client.js";
-import { createFixture, loginOwner, type Fixture } from "../helpers/fixtures.js";
+import { createFixture, createStaff, loginOwner, loginStaff, type Fixture } from "../helpers/fixtures.js";
 import { api } from "../helpers/http.js";
 import { buildSalesWorld, typicalOrder, type SalesWorld } from "../helpers/sales.js";
 
@@ -139,12 +139,17 @@ describe("dashboard insights", () => {
     expect(r.ops.stockValueMinor).toBeGreaterThan(0);
     expect(r.ops.owedMinor).toBe(6_000); // the invoice from the purchasing test, part paid
     expect(r.ops.customers).toMatchObject({ total: expect.any(Number) });
-    // a cashier sees counts of what they can act on, never the money
-    const cashier = (await w.as.cashier.get(`/dashboard/insights?${range()}`)).body.data;
-    expect(cashier.compare).toBeUndefined();
-    expect(cashier.topItems).toBeUndefined();
-    expect(cashier.alerts.approvals).toBeUndefined(); // no approvals.view
-    expect(cashier.branches).toBeUndefined();
-    expect(cashier.ops.stockValueMinor).toBeUndefined();
+    // a cashier has no dashboard at all; someone who may open it but not see money gets counts only
+    expect((await w.as.cashier.get(`/dashboard/insights?${range()}`)).status).toBe(403);
+    const viewer = await createStaff(fx, { permissions: ["dashboard.view", "orders.view"], locationIds: [w.pkr.id] });
+    const limited = api(app, (await loginStaff(app, viewer)).token);
+    const counts = (await limited.get(`/dashboard/insights?${range()}`)).body.data;
+    expect(counts.compare).toBeUndefined();
+    expect(counts.topItems).toBeUndefined();
+    expect(counts.branches).toBeUndefined();
+    expect(counts.hours.every((h: any) => h.totalMinor === 0)).toBe(true); // order counts yes, amounts no
+    expect(counts.recentOrders[0].totalMinor).toBeNull();
+    expect(counts.alerts.approvals).toBeUndefined(); // no approvals.view
+    expect(counts.ops.stockValueMinor).toBeUndefined();
   });
 });

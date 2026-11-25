@@ -15,15 +15,20 @@
 |---|---|---|
 | **0** | Planning docs | **Approved 2026-11-09** (all decisions accepted) |
 | 1 | Tenancy, organization, users, roles and permissions, audit, admin app shell | **Done, awaiting review** (2026-11-09) |
-| **1B** | Platform layer: Restoflux super-admin console, organization management, per-organization theme | **Built, tests running** (2026-11-09) |
-| **2a** | Catalog core: categories, products and sizes, modifiers, combos, menus and dayparts, prices, branch availability (86), demo menu, admin Menu screens | **Built, final test run in progress** (2026-11-10) |
+| **1B** | Platform layer: Restoflux super-admin console, organization management, per-organization theme | **Done, tests green** (2026-11-09) |
+| **2a** | Catalog core: categories, products and sizes, modifiers, combos, menus and dayparts, prices, branch availability (86), demo menu, admin Menu screens | **Done, tests green** (2026-11-10) |
 | 2b | Rebuild a thin, tenant-aware storefront on the new menu (`catalog/sellable`). **`web/` was removed on 2026-11-13**; remove the legacy API routes and tables next | Not started |
-| **3** | Orders, POS, kitchen display, payments, shifts and cash drawer, Z-reports, dashboard sales | **Built, final test run in progress** (2026-11-10). Deferred: legacy storefront migration (2b), customers (7), service charge |
-| **4** | Inventory: items, stock on hand, recipes, counts, adjustments and waste, transfers, production, automatic deduction on completed orders | **Built, API tests green** (2026-11-12) |
-| **5** | Purchasing: suppliers and their packs and prices, purchase orders, receiving, supplier invoices and payments, suggested orders | **Built, API tests green** (2026-11-12) |
-| **6** | Reports: sales, end of day / Z, food cost, inventory, purchasing and supplier ledger, menu engineering, fraud watch | **Built, API tests green** (2026-11-12) |
-| **7** | Customers, loyalty, coupons, promotions (applied at the till, priced by the server), feedback | **Built, API tests green** (2026-11-12) |
-| **8** | Delivery (zones, riders, dispatch board), staff (employees, roster, time clock), receipt template, notification settings | **Built** (2026-11-12) |
+| **3** | Orders, POS, kitchen display, payments, shifts and cash drawer, Z-reports, dashboard sales | **Done, tests green** (2026-11-10). Deferred: legacy storefront migration (2b), customers (7), service charge |
+| **4** | Inventory: items, stock on hand, recipes, counts, adjustments and waste, transfers, production, automatic deduction on completed orders | **Done, tests green** (2026-11-12) |
+| **5** | Purchasing: suppliers and their packs and prices, purchase orders, receiving, supplier invoices and payments, suggested orders | **Done, tests green** (2026-11-12) |
+| **6** | Reports: sales, end of day / Z, food cost, inventory, purchasing and supplier ledger, menu engineering, fraud watch | **Done, tests green** (2026-11-12) |
+| **7** | Customers, loyalty, coupons, promotions (applied at the till, priced by the server), feedback | **Done, tests green** (2026-11-12) |
+| **8** | Delivery (zones, riders, dispatch board), staff (employees, roster, time clock), receipt template, notification settings | **Done, tests green** (2026-11-12) |
+
+## Test status (2026-11-23)
+- **API: 31 files, 415 tests, all passing** in one clean run against the Neon database (about 24 minutes). **Admin: 5 files, 44 tests passing.** Typecheck is clean in every workspace.
+- Run single files while working (`npx vitest run tests/v1/orders.test.ts` from `api/`). **Never run several test files at the same time** against the remote database: the overlap made calls take 40 s and produced false failures that went away when run alone.
+- Found and fixed by this pass: completing an order (stock for every ingredient, coupons, customer, loyalty, audit) took about 25 s from a laptop to Neon, over the 20 s transaction limit, so the order was rolled back with a 500. The limit is now 60 s (`core/db/client.ts`). **To do:** trim the number of queries in order completion so it is fast on any database, not just tolerated.
 
 ## Baseline (before Phase 1)
 - **API** (`api/`): Express 5 + TypeScript ESM, Prisma 7.10.1 on Neon, Zod, JWT + bcrypt, Vitest + Supertest. Routes: auth, categories, menu-items, deals, orders, stats, health. **38 tests passing**, typecheck clean.

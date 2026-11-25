@@ -120,6 +120,28 @@
     @apply bg-background text-foreground antialiased;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
+  /* Tailwind v4 resets buttons to the plain arrow. Anything you can click shows the pointing hand; disabled things say no. */
+  button:not(:disabled),
+  a[href],
+  summary,
+  select,
+  label[for],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="submit"],
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
 }
 
 /* Slim, theme-aware scrollbars everywhere (sidebar, tables, dialogs). Firefox uses the standard
